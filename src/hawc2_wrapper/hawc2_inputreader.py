@@ -297,7 +297,7 @@ class HAWC2InputReader(Component):
                 cm = [cm]
             b.concentrated_mass = cm
         timo = section.get_entry('timoschenko_input')
-        st_type = timo.get_entry('becas')
+        st_type = timo.get_entry('FPM')
         if st_type is not None:
             stdic = read_hawc2_stKfull_file(timo.get_entry('filename'))
             b.st_input_type = st_type
