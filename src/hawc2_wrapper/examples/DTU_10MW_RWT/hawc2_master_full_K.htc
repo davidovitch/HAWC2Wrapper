@@ -153,7 +153,7 @@ begin main_body ;
   damping_aniso     0.0 0.0 0.0 0.00153 0.00255 0.00033 ;
   begin timoschenko_input;
     filename data/BECAS2HAWC2BT_EA.dat ;
-	becas 1;
+	FPM 1;
     set 1 1 ;
   end timoschenko_input;
   begin c2_def;

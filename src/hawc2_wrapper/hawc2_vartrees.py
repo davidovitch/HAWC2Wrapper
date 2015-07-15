@@ -71,6 +71,7 @@ class HAWC2BeamStructureFullK(VariableTree):
     y_cg = Array(desc='y-distance from blade axis to center of mass', units='m')
     ri_x = Array(desc='radius of gyration relative to elastic center.', units='m')
     ri_y = Array(desc='radius of gyration relative to elastic center', units='m')
+    pitch = Array(desc='structural pitch relative to main axis.', units='deg')
     x_e = Array(desc='x-distance from main axis to center of elasticity', units='m')
     y_e = Array(desc='y-distance from main axis to center of elasticity', units='m')
     K_11 = Array(desc='Element 1,1 of the Sectional Constitutive Matrix', units='N*m**2')
