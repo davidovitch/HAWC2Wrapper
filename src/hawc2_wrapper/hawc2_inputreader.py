@@ -301,19 +301,14 @@ class HAWC2InputReader(Component):
         if st_type is not None:
             stdic = read_hawc2_stKfull_file(timo.get_entry('filename'))
             b.st_input_type = st_type
-            for stset in stdic:
-                st = HAWC2BeamStructureFullK()
-                for k, w in stset.iteritems():
-                    setattr(st, k, w)
-                b.beam_structure.append(st)
         else:
             stdic = read_hawc2_st_file(timo.get_entry('filename'))
-            for stset in stdic:
-               st = HAWC2BeamStructure()
-               b.st_input_type = 0
-               for k, w in stset.iteritems():
-                   setattr(st, k, w)
-                   b.beam_structure.append(st)
+            b.st_input_type = 0
+        for stset in stdic:
+            st = HAWC2BeamStructure()
+            for k, w in stset.iteritems():
+                setattr(st, k, w)
+                b.beam_structure.append(st)
         b.body_set = timo.get_entry('set')
         c2def = section.get_entry('c2_def')
         b.c12axis = np.array(c2def.get_entry('sec'))[:, 1:5]
