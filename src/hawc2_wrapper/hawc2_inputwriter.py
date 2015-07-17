@@ -199,7 +199,7 @@ class HAWC2InputWriter(Component):
         self.controlinp = []
         self.sensors = []
 
-        self.configure_wt()if self.vartrees.aero.dynstall_method == 3:
+        self.configure_wt()
         self.write_simulation()
         self.write_wind()
         self.write_aero()
