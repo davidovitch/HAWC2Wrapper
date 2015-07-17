@@ -66,9 +66,9 @@ def write_stfile(path, body, case_id):
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
         header_full += '='*20*col_width + '\n'
     else:
-        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'x_e', 'y_e', 'K_11', 
-                  'K_12', 'K_13', 'K_14', 'K_15', 'K_16', 'K_22', 'K_23', 
-                  'K_24', 'K_25', 'K_26', 'K_33', 'K_34', 'K_35', 'K_36', 
+        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'x_e', 'y_e', 'K_11',
+                  'K_12', 'K_13', 'K_14', 'K_15', 'K_16', 'K_22', 'K_23',
+                  'K_24', 'K_25', 'K_26', 'K_33', 'K_34', 'K_35', 'K_36',
                   'K_44', 'K_45', 'K_46',
                   'K_55', 'K_56', 'K_66']
         # for readable files with headers above the actual data column
@@ -199,7 +199,7 @@ class HAWC2InputWriter(Component):
         self.controlinp = []
         self.sensors = []
 
-        self.configure_wt()
+        self.configure_wt()if self.vartrees.aero.dynstall_method == 3:
         self.write_simulation()
         self.write_wind()
         self.write_aero()
@@ -353,9 +353,10 @@ class HAWC2InputWriter(Component):
         sim.append('  time_stop    %s ;' % self.vartrees.sim.time_stop)
         sim.append('  solvertype   %i ;    (newmark)' % self.vartrees.sim.solvertype)
         # sim.append(';  animation %s ;' % (os.path.join(self.res_directory, self.case_id+'_animation.dat')))
-        sim.append('  convergence_limits %3.6f %3.6f %3.6f;' % (self.vartrees.sim.convergence_limits[0],
-                                                                self.vartrees.sim.convergence_limits[1],
-                                                                self.vartrees.sim.convergence_limits[2]))
+        sim.append('  convergence_limits %3.6f %3.6f %3.6f;' %
+                   (self.vartrees.sim.convergence_limits[0],
+                    self.vartrees.sim.convergence_limits[1],
+                    self.vartrees.sim.convergence_limits[2]))
         sim.append('  on_no_convergence continue ;')
         sim.append('  max_iterations %i ;' % self.vartrees.sim.max_iterations)
         sim.append('  logfile %s ;' % (os.path.join(self.log_directory,self.case_id+'.log')))
@@ -370,25 +371,25 @@ class HAWC2InputWriter(Component):
 
         wind = []
         wind.append('begin wind ;')
-        wind.append('  density                %3.6f ;' % self.vartrees.wind.density)
-        wind.append('  wsp                    %3.6f ;' % self.vartrees.wind.wsp)
-        wind.append('  tint                   %3.6f ;' % self.vartrees.wind.tint)
-        wind.append('  horizontal_input       %i ; 0=false, 1=true' %
+        wind.append('  density            %3.6f;' % self.vartrees.wind.density)
+        wind.append('  wsp                %3.6f;' % self.vartrees.wind.wsp)
+        wind.append('  tint               %3.6f;' % self.vartrees.wind.tint)
+        wind.append('  horizontal_input   %i; 0=false, 1=true' %
                     self.vartrees.wind.horizontal_input)
-        wind.append('  windfield_rotations    %3.6f %3.6f %3.6f ;' %
+        wind.append('  windfield_rotations %3.6f %3.6f %3.6f;' %
                     (self.vartrees.wind.windfield_rotations[0],
                      self.vartrees.wind.windfield_rotations[1],
                      self.vartrees.wind.windfield_rotations[2]))
-        wind.append('  center_pos0            %3.6f %3.6f %3.6f ; hub height' %
+        wind.append('  center_pos0         %3.6f %3.6f %3.6f; hub height' %
                     (self.vartrees.wind.center_pos0[0],
                      self.vartrees.wind.center_pos0[1],
                      self.vartrees.wind.center_pos0[2]))
-        wind.append('  shear_format           %i %3.6f ;' %
+        wind.append('  shear_format        %i %3.6f;' %
                     (self.vartrees.wind.shear_type,
                      self.vartrees.wind.shear_factor))
-        wind.append('  turb_format            %i ;  0=none, 1=mann, 2=flex' %
+        wind.append('  turb_format         %i ;  0=none, 1=mann, 2=flex' %
                     self.vartrees.wind.turb_format)
-        wind.append('  tower_shadow_method    %i ;  0=none, 1=potential flow, \
+        wind.append('  tower_shadow_method %i;  0=none, 1=potential flow, \
                     2=jet' % self.vartrees.wind.tower_shadow_method)
 
         for wind_ramp in self.vartrees.wind.wind_ramp_abs:
@@ -422,12 +423,18 @@ class HAWC2InputWriter(Component):
                                    self.vartrees.wind.mann.gamma,
                                    self.vartrees.wind.mann.seed,
                                    self.vartrees.wind.mann.highfrq_compensation))
-            wind.append('    filename_u   %s ;' % (os.path.join(self.turb_directory, self.vartrees.wind.mann.turb_base_name+'_u.bin')))
-            wind.append('    filename_v   %s ;' % (os.path.join(self.turb_directory, self.vartrees.wind.mann.turb_base_name+'_v.bin')))
-            wind.append('    filename_w   %s ;' % (os.path.join(self.turb_directory, self.vartrees.wind.mann.turb_base_name+'_w.bin')))
-            wind.append('    box_dim_u    %i %10.3f ;' % (self.vartrees.wind.mann.box_nu, self.vartrees.wind.mann.box_du))
-            wind.append('    box_dim_v    %i %10.3f ;' % (self.vartrees.wind.mann.box_nv, self.vartrees.wind.mann.box_dv))
-            wind.append('    box_dim_w    %i %10.3f ;' % (self.vartrees.wind.mann.box_nw, self.vartrees.wind.mann.box_dw))
+            wind.append('    filename_u   %s ;' % (os.path.join(self.turb_directory,
+                                                                self.vartrees.wind.mann.turb_base_name+'_u.bin')))
+            wind.append('    filename_v   %s ;' % (os.path.join(self.turb_directory,
+                                                                self.vartrees.wind.mann.turb_base_name+'_v.bin')))
+            wind.append('    filename_w   %s ;' % (os.path.join(self.turb_directory,
+                                                                self.vartrees.wind.mann.turb_base_name+'_w.bin')))
+            wind.append('    box_dim_u    %i %10.3f ;' % (self.vartrees.wind.mann.box_nu,
+                                                          self.vartrees.wind.mann.box_du))
+            wind.append('    box_dim_v    %i %10.3f ;' % (self.vartrees.wind.mann.box_nv,
+                                                          self.vartrees.wind.mann.box_dv))
+            wind.append('    box_dim_w    %i %10.3f ;' % (self.vartrees.wind.mann.box_nw,
+                                                          self.vartrees.wind.mann.box_dw))
             wind.append('    std_scaling  %3.6f %3.6f %3.6f ;' % (self.vartrees.wind.mann.std_scaling[0],
                                                                   self.vartrees.wind.mann.std_scaling[1],
                                                                   self.vartrees.wind.mann.std_scaling[2]))
@@ -469,11 +476,19 @@ class HAWC2InputWriter(Component):
         aero.append('  ae_sets            %s ;' % ' '.join(map(str, self.vartrees.aero.ae_sets)))
         aero.append('  tiploss_method     %i ; 0=none, 1=prandtl' % self.vartrees.aero.tiploss_method)
         aero.append('  dynstall_method    %i ; 0=none, 1=stig oeye method,2=mhh method,3=ATEFlap' % self.vartrees.aero.dynstall_method)
-        aero.append('    begin dynstall_ateflap ; ')                                                                                                                                          ### tkba: addition for flaps ###
-        aero.append('     Ais   %1.2f   %1.2f   %1.2f ;' % (self.vartrees.aero.atef_Ais[0], self.vartrees.aero.atef_Ais[1], self.vartrees.aero.atef_Ais[2]))                                  ### tkba: addition for flaps ###
-        aero.append('     Bis   %1.4f   %1.2f   %1.2f ;' % (self.vartrees.aero.atef_Bis[0], self.vartrees.aero.atef_Bis[1], self.vartrees.aero.atef_Bis[2]))                                  ### tkba: addition for flaps ###
-        aero.append('     flap   %2.4f   %1.4f   ./%s/%s.ds ; Flap Sec: 1' % (self.vartrees.aero.flap_in, self.vartrees.aero.flap_out, self.data_directory, self.vartrees.aero.ds_filename))  ### tkba: addition for flaps ###
-        aero.append('    end dynstall_ateflap ; ')                                                                                                                                            ### tkba: addition for flaps ###
+        if self.vartrees.aero.dynstall_method == 3:
+            aero.append('  begin dynstall_ateflap ; ')
+            aero.append('    Ais  %1.2f  %1.2f  %1.2f;' % (self.vartrees.aero.atef_Ais[0],
+                                                           self.vartrees.aero.atef_Ais[1],
+                                                           self.vartrees.aero.atef_Ais[2]))
+            aero.append('    Bis  %1.4f  %1.2f  %1.2f;' % (self.vartrees.aero.atef_Bis[0],
+                                                           self.vartrees.aero.atef_Bis[1],
+                                                           self.vartrees.aero.atef_Bis[2]))
+            aero.append('    flap %2.4f  %1.4f  ./%s/%s.ds; Flap Sec: 1' % (self.vartrees.aero.flap_in,
+                                                                            self.vartrees.aero.flap_out,
+                                                                            self.data_directory,
+                                                                            self.vartrees.aero.ds_filename))
+            aero.append('  end dynstall_ateflap ;')
         aero.append('end aero ;')
 
         self.master.extend(aero)
@@ -525,7 +540,7 @@ class HAWC2InputWriter(Component):
                 main_bodies.append('  type        timoschenko ;')
                 main_bodies.append('  nbodies     %d ;' % body.nbodies)
                 main_bodies.append('  node_distribution     c2_def ;')
-                
+
                 if body.damping_type is 'ani':
                     main_bodies.append('  damping_aniso     %s ;' % ' '.join(map(str, body.damping_aniso)))
                 else:
@@ -980,14 +995,13 @@ class HAWC2InputWriter(Component):
         write_aefile(path, self.vartrees.blade_ae)
 
         ###### QUICK FIX: COPY DS FILE FROM TOP DATA FOLDER ###################
-        try:
-            import shutil        
-            self.source_path = os.path.join(self.basedir + '/data', self.vartrees.aero.ds_filename + '.ds')     ### tkba: addition for flaps ###  
-            self.destin_path = os.path.join(self.data_directory, self.vartrees.aero.ds_filename + '.ds')        ### tkba: addition for flaps ###          
-            shutil.copy (self.source_path, self.destin_path)                                                    ### tkba: addition for flaps ###
-        except:
-            pass
-        #######################################################################
+        if self.vartrees.aero.dynstall_method == 3:
+            import shutil
+            self.source_path = os.path.join(self.basedir + '/data',
+                                            self.vartrees.aero.ds_filename + '.ds')
+            self.destin_path = os.path.join(self.data_directory,
+                                            self.vartrees.aero.ds_filename + '.ds')
+            shutil.copy (self.source_path, self.destin_path)
 
     def write_stfile(self, body):
 
@@ -996,7 +1010,7 @@ class HAWC2InputWriter(Component):
         write_stfile(path, body, self.case_id)
 
     def write_pcfile(self):
-        
+
         path = os.path.join(self.data_directory, self.case_id + '_pc.dat')
         write_pcfile(path, self.vartrees.airfoildata)
 
@@ -1303,7 +1317,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
                             self.vartrees.h2s.options.regions[0],
                             self.vartrees.h2s.options.regions[1],
                             self.vartrees.h2s.options.regions[2],
-                            self.vartrees.h2s.options.regions[3]))            
+                            self.vartrees.h2s.options.regions[3]))
         self.h2s.append('  end controller_tuning ;')
 
         if self.from_file:
