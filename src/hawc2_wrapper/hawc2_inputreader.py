@@ -318,7 +318,7 @@ class HAWC2InputReader(Component):
                b.st_input_type = 0
                for k, w in stset.iteritems():
                    setattr(st, k, w)
-                   b.beam_structure.append(st)
+               b.beam_structure.append(st)
         b.body_set = timo.get_entry('set')
         c2def = section.get_entry('c2_def')
         b.c12axis = np.array(c2def.get_entry('sec'))[:, 1:5]
