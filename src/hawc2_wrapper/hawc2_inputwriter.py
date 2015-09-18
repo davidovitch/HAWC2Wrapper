@@ -171,7 +171,7 @@ class HAWC2InputWriter(Component):
         self.sensors = []
 
         self._nbodies = 0
-        self.basedir = os.getcwd()                        ### tkba: addition for flaps ###
+        self.basedir = os.getcwd()
         if not os.path.exists(self.data_directory):
             os.mkdir(self.data_directory)
 
@@ -484,7 +484,7 @@ class HAWC2InputWriter(Component):
             aero.append('    Bis  %1.4f  %1.2f  %1.2f;' % (self.vartrees.aero.atef_Bis[0],
                                                            self.vartrees.aero.atef_Bis[1],
                                                            self.vartrees.aero.atef_Bis[2]))
-            aero.append('    flap %2.4f  %1.4f  ./%s/%s.ds; Flap Sec: 1' % (self.vartrees.aero.flap_in,
+            aero.append('    flap %2.4f  %1.4f  ./%s/%s; Flap Sec: 1' % (self.vartrees.aero.flap_in,
                                                                             self.vartrees.aero.flap_out,
                                                                             self.data_directory,
                                                                             self.vartrees.aero.ds_filename))
@@ -994,14 +994,14 @@ class HAWC2InputWriter(Component):
         path = os.path.join(self.data_directory, self.case_id + '_ae.dat')
         write_aefile(path, self.vartrees.blade_ae)
 
-        ###### QUICK FIX: COPY DS FILE FROM TOP DATA FOLDER ###################
         if self.vartrees.aero.dynstall_method == 3:
             import shutil
-            self.source_path = os.path.join(self.basedir + '/data',
-                                            self.vartrees.aero.ds_filename + '.ds')
+            self.source_path = os.path.join(self.basedir,'data/'+
+                                            self.vartrees.aero.ds_filename)
             self.destin_path = os.path.join(self.data_directory,
-                                            self.vartrees.aero.ds_filename + '.ds')
-            shutil.copy (self.source_path, self.destin_path)
+                                            self.vartrees.aero.ds_filename)
+            if not os.path.samefile(self.basedir+'/data/', self.data_directory):
+                shutil.copy(self.source_path, self.destin_path)
 
     def write_stfile(self, body):
 

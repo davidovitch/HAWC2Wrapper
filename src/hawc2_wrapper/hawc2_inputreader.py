@@ -183,15 +183,21 @@ class HAWC2InputReader(Component):
         vt = self.set_entry(vt, section, 'aerocalc_method')
         vt = self.set_entry(vt, section, 'tiploss_method')
         vt = self.set_entry(vt, section, 'dynstall_method')
-        vt = self.set_entry(vt, section, 'begin dynstall_ateflap')      ### tkba: addition for flaps ###
-        vt = self.set_entry(vt, section, 'Ais')                         ### tkba: addition for flaps ###
-        vt = self.set_entry(vt, section, 'Bis')                         ### tkba: addition for flaps ###
-        vt = self.set_entry(vt, section, 'flap')                        ### tkba: addition for flaps ###
-        vt = self.set_entry(vt, section, 'end dynstall_ateflap')        ### tkba: addition for flaps ###
         vt = self.set_entry(vt, section, 'aerosections')
         vt = self.set_entry(vt, section, 'ae_filename')
         vt = self.set_entry(vt, section, 'pc_filename')
         vt = self.set_entry(vt, section, 'ae_sets')
+
+        ateflap = section.get_entry('dynstall_ateflap')
+        if ateflap is not None:
+            vt.atef_Ais = np.array([np.float(i) for i in ateflap.get_entry('Ais')])
+            vt.atef_Bis = np.array([np.float(i) for i in ateflap.get_entry('Bis')])
+            tmp = ateflap.get_entry('flap')
+            vt.flap_in = np.float(tmp[0])
+            vt.flap_out = np.float(tmp[1])
+            start = tmp[2].rindex('/')
+            vt.ds_filename = tmp[2][start+1:]
+
         hub_vec = section.get_entry('hub_vec')
         if hub_vec is not None:
             vt.hub_vec_mbdy_name = hub_vec[0]
@@ -286,7 +292,7 @@ class HAWC2InputReader(Component):
         b = self.set_entry(b, section, 'body_type', h2name='type')
         b = self.set_entry(b, section, 'nbodies')
         b = self.set_entry(b, section, 'node_distribution')
-        
+
         d_ani = section.get_entry('damping_aniso')
         if d_ani is not None:
             b.damping_aniso = d_ani
