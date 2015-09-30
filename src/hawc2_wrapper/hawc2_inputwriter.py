@@ -66,9 +66,9 @@ def write_stfile(path, body, case_id):
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
         header_full += '='*20*col_width + '\n'
     else:
-        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'pitch', 'x_e', 'y_e', 'K_11', 
-                  'K_12', 'K_13', 'K_14', 'K_15', 'K_16', 'K_22', 'K_23', 
-                  'K_24', 'K_25', 'K_26', 'K_33', 'K_34', 'K_35', 'K_36', 
+        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'pitch', 'x_e', 'y_e', 'K_11',
+                  'K_12', 'K_13', 'K_14', 'K_15', 'K_16', 'K_22', 'K_23',
+                  'K_24', 'K_25', 'K_26', 'K_33', 'K_34', 'K_35', 'K_36',
                   'K_44', 'K_45', 'K_46',
                   'K_55', 'K_56', 'K_66']
         # for readable files with headers above the actual data column
@@ -521,7 +521,7 @@ class HAWC2InputWriter(Component):
                 main_bodies.append('  type        timoschenko ;')
                 main_bodies.append('  nbodies     %d ;' % body.nbodies)
                 main_bodies.append('  node_distribution     c2_def ;')
-                
+
                 if body.damping_type is 'ani':
                     main_bodies.append('  damping_aniso     %s ;' % ' '.join(map(str, body.damping_aniso)))
                 else:
@@ -982,7 +982,7 @@ class HAWC2InputWriter(Component):
         write_stfile(path, body, self.case_id)
 
     def write_pcfile(self):
-        
+
         path = os.path.join(self.data_directory, self.case_id + '_pc.dat')
         write_pcfile(path, self.vartrees.airfoildata)
 
@@ -1289,7 +1289,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
                             self.vartrees.h2s.options.regions[0],
                             self.vartrees.h2s.options.regions[1],
                             self.vartrees.h2s.options.regions[2],
-                            self.vartrees.h2s.options.regions[3]))            
+                            self.vartrees.h2s.options.regions[3]))
         self.h2s.append('  end controller_tuning ;')
 
         if self.from_file:
@@ -1353,4 +1353,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
                         self.vartrees.dlls.risoe_controller.dll_init.prvs_turbine)
         self.h2s.append('    include_torsiondeform %d ;' %
                         self.vartrees.h2s.options.include_torsiondeform)
+        if self.vartrees.h2s.options.remove_torque_limits:
+            self.h2s.append('    remove_torque_limits %d ;' %
+                            self.vartrees.h2s.options.remove_torque_limits)
         self.h2s.append('  end operational_data ;')

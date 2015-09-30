@@ -605,6 +605,7 @@ class HAWC2SCommandsOpt(VariableTree):
     aero_deflect_ratio  = Float(0.01)
     vloc_out  = Bool(False)
     regions = Array()
+    remove_torque_limits = Int(0)
 
 class HAWC2SBody(VariableTree):
 
