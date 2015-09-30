@@ -387,7 +387,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
     oper = VarTree(RotorOperationalDataArray(),
                    iotype='out', desc='Operational data')
 
-    blade_length = Float(86.366)
+    blade_length = Float(86.366, iotype='in')
 
     def execute(self):
         super(HAWC2SOutputIDO, self).execute()
