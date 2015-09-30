@@ -416,7 +416,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
         self.rotor_loads.pitch = data[:, 8]
 
         self.rotor_loads.P = data[:, 1] * 1000.
-        self.rotor_loads.Q = data[:, 1] * 1000. / data[:, 9] * 2. * np.pi / 60.
+        self.rotor_loads.Q = data[:, 1] * 1000. / (data[:, 9] * 2. * np.pi / 60.)
         self.rotor_loads.T = data[:, 2] * 1000.
         self.rotor_loads.CP = data[:, 3]
         self.rotor_loads.CT = data[:, 4]
