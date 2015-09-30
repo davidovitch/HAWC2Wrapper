@@ -17,7 +17,7 @@ def _get_fmt(val):
         elif isinstance(val, int):
             return '%i'
         elif isinstance(val, float):
-            return '%.16f'
+            return '%.20f'
 
     if isinstance(val, list):
         return ' '.join([_get_fmt1(v) for v in val])
@@ -35,7 +35,7 @@ def write_pcfile(path, pc):
             polar = pcset.polars[j]
             fid.write('%i %i %f %s\n' % (j + 1, polar.aoa.shape[0], polar.rthick, polar.desc))
             for k in range(polar.aoa.shape[0]):
-                fid.write('% 20.12e  % 20.12e  % 20.12e  % 20.12e \n' % \
+                fid.write('%.20e  %.20e  %.20e  %.20e \n' % \
                           (polar.aoa[k], polar.cl[k], polar.cd[k], polar.cm[k]))
     fid.close()
 
@@ -50,7 +50,7 @@ def write_aefile(path, b):
                      b.chord,
                      np.minimum(100., b.rthick),
                      b.aeset]).T
-    np.savetxt(fid, data, fmt="%f %f %f %i")
+    np.savetxt(fid, data, fmt="%.20e %.20e %.20e %i")
     fid.close()
 
 def write_stfile(path, body, case_id):
@@ -60,19 +60,19 @@ def write_stfile(path, body, case_id):
         header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'x_sh', 'y_sh', 'E',
                   'G', 'I_x', 'I_y', 'K', 'k_x', 'k_y', 'A', 'pitch', 'x_e', 'y_e']
         # for readable files with headers above the actual data column
-        exp_prec = 10             # exponential precesion
+        exp_prec = 20             # exponential precesion
         col_width = exp_prec + 8  # column width required for exp precision
         header_full = '='*20*col_width + '\n'
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
         header_full += '='*20*col_width + '\n'
     else:
-        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'pitch', 'x_e', 'y_e', 'K_11',
+        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'pitch', 'x_e', 'y_e', 'K_11', 
                   'K_12', 'K_13', 'K_14', 'K_15', 'K_16', 'K_22', 'K_23',
                   'K_24', 'K_25', 'K_26', 'K_33', 'K_34', 'K_35', 'K_36',
                   'K_44', 'K_45', 'K_46',
                   'K_55', 'K_56', 'K_66']
         # for readable files with headers above the actual data column
-        exp_prec = 10             # exponential precesion
+        exp_prec = 20             # exponential precesion
         col_width = exp_prec + 8  # column width required for exp precision
         header_full = '='*32*col_width + '\n'
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
@@ -539,7 +539,7 @@ class HAWC2InputWriter(Component):
                 main_bodies.append('  begin c2_def;')
                 main_bodies.append('    nsec %i;' % body.c12axis.shape[0])
                 for i in range(body.c12axis.shape[0]):
-                    main_bodies.append('    sec %i  %6.6f %6.6f %6.6f %6.6f;' %
+                    main_bodies.append('    sec %i  %.20e %.20e %.20e %.20e;' %
                                        (i + 1,
                                         body.c12axis[i, 0],
                                         body.c12axis[i, 1],
@@ -1345,7 +1345,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
                         self.vartrees.dlls.risoe_controller.dll_init.gearRatio)
         self.h2s.append('    minpitch %3.6f ;' %
                         self.vartrees.dlls.risoe_controller.dll_init.minPitch)
-        self.h2s.append('    opt_lambda %3.6f ;' %
+        self.h2s.append('    opt_lambda %.20e ;' %
                         self.vartrees.dlls.risoe_controller.dll_init.designTSR)
         self.h2s.append('    maxpow %3.6e ;' %
                         (self.vartrees.dlls.risoe_controller.dll_init.ratedAeroPower))
