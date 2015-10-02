@@ -54,6 +54,7 @@ class HAWC2SCaseIter(Assembly):
         self.create_passthrough('wrapper.hawc2bin')
         self.connect('model_name+case_id', 'wrapper.case_id')
         self.connect('model_name+case_id', 'output.case_id')
+        self.create_passthrough('output.blade_length')
         self.wrapper.copyback_results = False
 
         # add parameters and responses
@@ -94,4 +95,3 @@ class HAWC2SCaseIter(Assembly):
         self.create_passthrough('cid.case_outputs.frqpost.freq_factor')
         self.log_level = logging.DEBUG
         self._logger.info('HAWC2S configure_freq_placement_cid: %s' % freq_type)
- 
