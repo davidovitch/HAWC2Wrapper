@@ -17,7 +17,7 @@ def _get_fmt(val):
         elif isinstance(val, int):
             return '%i'
         elif isinstance(val, float):
-            return '%.16f'
+            return '%.20f'
 
     if isinstance(val, list):
         return ' '.join([_get_fmt1(v) for v in val])
@@ -35,7 +35,7 @@ def write_pcfile(path, pc):
             polar = pcset.polars[j]
             fid.write('%i %i %f %s\n' % (j + 1, polar.aoa.shape[0], polar.rthick, polar.desc))
             for k in range(polar.aoa.shape[0]):
-                fid.write('% 20.12e  % 20.12e  % 20.12e  % 20.12e \n' % \
+                fid.write('%.20e  %.20e  %.20e  %.20e \n' % \
                           (polar.aoa[k], polar.cl[k], polar.cd[k], polar.cm[k]))
     fid.close()
 
@@ -50,17 +50,17 @@ def write_aefile(path, b):
                      b.chord,
                      np.minimum(100., b.rthick),
                      b.aeset]).T
-    np.savetxt(fid, data, fmt="%f %f %f %i")
+    np.savetxt(fid, data, fmt="%.20e %.20e %.20e %i")
     fid.close()
 
 def write_stfile(path, body, case_id):
 
     """write the beam structural data to an st_filename"""
     if body.st_input_type is 0:
-        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'x_sh', 'y_sh', 'E',
+        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'pitch', 'x_sh', 'y_sh', 'E',
                   'G', 'I_x', 'I_y', 'K', 'k_x', 'k_y', 'A', 'pitch', 'x_e', 'y_e']
         # for readable files with headers above the actual data column
-        exp_prec = 10             # exponential precesion
+        exp_prec = 20             # exponential precesion
         col_width = exp_prec + 8  # column width required for exp precision
         header_full = '='*20*col_width + '\n'
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
@@ -552,7 +552,7 @@ class HAWC2InputWriter(Component):
                 tmpname = ''.join([i for i in body.body_name if not i.isdigit()])
                 main_bodies.append('    filename %s ;' % (os.path.join(self.data_directory, self.case_id +'_'+ tmpname + '_st.dat')))
                 if body.st_input_type is not 0:
-                    main_bodies.append('    becas %d ;' % body.st_input_type)
+                    main_bodies.append('    FPM %d ;' % body.st_input_type)
                 main_bodies.append('    set %d %d ;' % (body.body_set[0], body.body_set[1]))
                 main_bodies.append('  end timoschenko_input;')
                 main_bodies.append('  begin c2_def;')
@@ -1381,4 +1381,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
                         self.vartrees.dlls.risoe_controller.dll_init.prvs_turbine)
         self.h2s.append('    include_torsiondeform %d ;' %
                         self.vartrees.h2s.options.include_torsiondeform)
+        if self.vartrees.h2s.options.remove_torque_limits:
+            self.h2s.append('    remove_torque_limits %d ;' %
+                            self.vartrees.h2s.options.remove_torque_limits)
         self.h2s.append('  end operational_data ;')

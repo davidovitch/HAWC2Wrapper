@@ -63,16 +63,6 @@ class HAWC2BeamStructure(VariableTree):
     x_e = Array(desc='x-distance from main axis to center of elasticity', units='m')
     y_e = Array(desc='y-distance from main axis to center of elasticity', units='m')
 
-class HAWC2BeamStructureFullK(VariableTree):
-
-    s = Array(desc='Running curve length of beam', units='m')
-    dm = Array(desc='Mass per unit length', units='kg/m')
-    x_cg = Array(desc='x-distance from blade axis to center of mass', units='m')
-    y_cg = Array(desc='y-distance from blade axis to center of mass', units='m')
-    ri_x = Array(desc='radius of gyration relative to elastic center.', units='m')
-    ri_y = Array(desc='radius of gyration relative to elastic center', units='m')
-    x_e = Array(desc='x-distance from main axis to center of elasticity', units='m')
-    y_e = Array(desc='y-distance from main axis to center of elasticity', units='m')
     K_11 = Array(desc='Element 1,1 of the Sectional Constitutive Matrix', units='N*m**2')
     K_12 = Array(desc='Element 1,2 of the Sectional Constitutive Matrix', units='N*m**2')
     K_13 = Array(desc='Element 1,3 of the Sectional Constitutive Matrix', units='N*m**2')
@@ -621,6 +611,7 @@ class HAWC2SCommandsOpt(VariableTree):
     aero_deflect_ratio  = Float(0.01)
     vloc_out  = Bool(False)
     regions = Array()
+    remove_torque_limits = Int(0)
 
 class HAWC2SBody(VariableTree):
 

@@ -92,7 +92,10 @@ class HAWC2BeamStructureIDO(Component):
         for name in bps.list_vars():
             fused_name = name
             if name == 'K': fused_name = 'J'
-            val = getattr(self.beam_structure, fused_name)
-            setattr(bps, name, val)
+            try:
+                val = getattr(self.beam_structure, fused_name)
+                setattr(bps, name, val)
+            except:
+                pass
         self.h2beam_structure.append(bps)
 

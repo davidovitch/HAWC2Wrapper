@@ -387,7 +387,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
     oper = VarTree(RotorOperationalDataArray(),
                    iotype='out', desc='Operational data')
 
-    blade_length = Float(86.366)
+    blade_length = Float(86.366, iotype='in')
 
     def execute(self):
         super(HAWC2SOutputIDO, self).execute()
@@ -416,7 +416,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
         self.rotor_loads.pitch = data[:, 8]
 
         self.rotor_loads.P = data[:, 1] * 1000.
-        self.rotor_loads.Q = data[:, 1] * 1000. / data[:, 9] * 2. * np.pi / 60.
+        self.rotor_loads.Q = data[:, 1] * 1000. / (data[:, 9] * 2. * np.pi / 60.)
         self.rotor_loads.T = data[:, 2] * 1000.
         self.rotor_loads.CP = data[:, 3]
         self.rotor_loads.CT = data[:, 4]
@@ -436,7 +436,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
                 data = data.reshape(1, data.shape[0])
             loads = DistributedLoadsExtVT()
             disps = BeamDisplacementsVT()
-            loads.s = data[:, 0]  # / self.blade_length
+            loads.s = data[:, 0]   / self.blade_length
             loads.aoa = data[:, 4] * 180. / np.pi
             loads.Ft = data[:, 6]
             loads.Fn = data[:, 7]
@@ -934,6 +934,8 @@ class ComputeLoads(Component):
                 if isinstance(var, np.ndarray):
                     setattr(lc, name, np.zeros(load.s.shape[0]))
             lc.s = load.s
+            r = load.s * self.pf.blade_length + self.hub_radius
+
             lc.case_id = lname
             lc.Fxm = np.zeros(load.s.shape[0])
             lc.Fym = np.zeros(load.s.shape[0])
@@ -945,25 +947,25 @@ class ComputeLoads(Component):
             Fy =  load.Fn * np.cos(theta + pitch) - load.Ft * np.sin(theta + pitch)
 
             # compute contribution from mass
-            dm = np.interp(load.s, self.beam_structure.s, self.beam_structure.dm)
+            dm = np.interp(load.s * self.pf.smax * self.pf.blade_length, self.beam_structure.s, self.beam_structure.dm)
             # Fmass = np.array([np.trapz(dm[i:], load.s[i:]) for i in range(load.s.shape[0])]) * 9.81
             Fmass = dm * self.g
             Fxmass = Fmass * np.cos(theta + pitch)
             Fymass = Fmass * np.sin(theta + pitch)
 
             # centrifugal acceleration a = (omega * r)**2 / r + g
-            acc = (self.oper.rpm[j] * 2 * np.pi / 60.)**2 * (load.s + self.hub_radius) + self.g
+            acc = (self.oper.rpm[j] * 2 * np.pi / 60.)**2 * r + self.g
             lc.acc = acc
             if vhub > 25.:
                 factor = 1.35
             else:
                 factor = 1.1
             for i in range(load.s.shape[0]):
-                lc.Fx[i] = (np.trapz(Fx[i:] + Fxmass[i:], load.s[i:])) * factor
-                lc.Fy[i] = (np.trapz(Fy[i:] + Fymass[i:], load.s[i:])) * factor
-                lc.Fz[i] = np.trapz(acc[i:] * dm[i:], load.s[i:]) * factor
-                lc.Mx[i] = -np.trapz((Fy[i:] + Fxmass[i:]) * (load.s[i:] - load.s[i]), load.s[i:]) * factor
-                lc.My[i] = np.trapz((Fx[i:] + Fymass[i:]) * (load.s[i:] - load.s[i]), load.s[i:]) * factor
+                lc.Fx[i] = (np.trapz(Fx[i:] + Fxmass[i:], r[i:])) * factor
+                lc.Fy[i] = (np.trapz(Fy[i:] + Fymass[i:], r[i:])) * factor
+                lc.Fz[i] = np.trapz(acc[i:] * dm[i:], r[i:]) * factor
+                lc.Mx[i] = -np.trapz((Fy[i:] + Fxmass[i:]) * (r[i:] - r[i]), r[i:]) * factor
+                lc.My[i] = np.trapz((Fx[i:] + Fymass[i:]) * (r[i:] - r[i]), r[i:]) * factor
 
             self.lcs.append(lc.copy())
 
@@ -974,7 +976,7 @@ class ComputeLoads(Component):
                 # positive components
                 lv = LoadVector()
                 for case in self.lcs:
-                    c = case._interp_s(x  * self.pf.blade_length)
+                    c = case._interp_s(x)
                     if getattr(c, name) > getattr(lv, name):
                         lv = c.copy()
                 lc.cases.append(lv.copy())
@@ -982,7 +984,7 @@ class ComputeLoads(Component):
                 # negative components
                 lv = LoadVector()
                 for case in self.lcs:
-                    c = case._interp_s(x  * self.pf.blade_length)
+                    c = case._interp_s(x)
                     if getattr(c, name) < getattr(lv, name):
                         lv = c.copy()
                 lc.cases.append(lv.copy())

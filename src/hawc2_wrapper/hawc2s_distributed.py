@@ -215,6 +215,7 @@ class HAWC2SDistributed(Assembly):
         # self.create_passthrough('geom.blade_length')
         self.connect('wt.blade_length', 'geom.blade_length')
         self.create_passthrough('geom.interp_from_htc', alias='planform_interp_from_htc')
+        self.connect('wt.blade_length', 'h2.blade_length')
         self.create_passthrough('geom.blade_ni_span')
         self.connect('geom.blade_ae', 'casegen.vartrees.blade_ae')
         self.connect('geom.blade_ae', 'vartrees_out.blade_ae')

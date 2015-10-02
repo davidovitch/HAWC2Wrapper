@@ -55,6 +55,7 @@ class HAWC2SCaseIter(Assembly):
         self.connect('model_name+case_id', 'wrapper.case_id')
         self.connect('model_name+case_id', 'output.case_id')
         self.wrapper.copyback_results = False
+        self.create_passthrough('output.blade_length')
 
         # add parameters and responses
         self.cid.add_parameter('input.vartrees')
