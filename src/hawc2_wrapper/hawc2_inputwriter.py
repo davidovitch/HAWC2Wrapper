@@ -66,17 +66,17 @@ def write_stfile(path, body, case_id):
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
         header_full += '='*20*col_width + '\n'
     else:
-        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'x_e', 'y_e', 'K_11',
+        header = ['r', 'm', 'x_cg', 'y_cg', 'ri_x', 'ri_y', 'pitch', 'r_e', 'y_e', 'K_11',
                   'K_12', 'K_13', 'K_14', 'K_15', 'K_16', 'K_22', 'K_23',
                   'K_24', 'K_25', 'K_26', 'K_33', 'K_34', 'K_35', 'K_36',
                   'K_44', 'K_45', 'K_46',
                   'K_55', 'K_56', 'K_66']
         # for readable files with headers above the actual data column
-        exp_prec = 10             # exponential precesion
+        exp_prec = 20             # exponential precesion
         col_width = exp_prec + 8  # column width required for exp precision
-        header_full = '='*31*col_width + '\n'
+        header_full = '='*32*col_width + '\n'
         header_full += ''.join([(hh + ' [%i]').center(col_width+1)%i for i, hh in enumerate(header)])+'\n'
-        header_full += '='*31*col_width + '\n'
+        header_full += '='*32*col_width + '\n'
 
     fid = open(path, 'w')
     fid.write('1  number of sets, Nset\n' % body.body_set[1])
@@ -117,6 +117,7 @@ def write_stfile(path, body, case_id):
                              st.y_cg,
                              st.ri_x,
                              st.ri_y,
+                             st.pitch,
                              st.x_e,
                              st.y_e,
                              st.K_11,
@@ -558,7 +559,7 @@ class HAWC2InputWriter(Component):
                 main_bodies.append('  begin c2_def;')
                 main_bodies.append('    nsec %i;' % body.c12axis.shape[0])
                 for i in range(body.c12axis.shape[0]):
-                    main_bodies.append('    sec %i  %6.6f %6.6f %6.6f %6.6f;' %
+                    main_bodies.append('    sec %i  %.20e %.20e %.20e %.20e;' %
                                        (i + 1,
                                         body.c12axis[i, 0],
                                         body.c12axis[i, 1],
@@ -1373,7 +1374,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
                         self.vartrees.dlls.risoe_controller.dll_init.gearRatio)
         self.h2s.append('    minpitch %3.6f ;' %
                         self.vartrees.dlls.risoe_controller.dll_init.minPitch)
-        self.h2s.append('    opt_lambda %3.6f ;' %
+        self.h2s.append('    opt_lambda %.20e ;' %
                         self.vartrees.dlls.risoe_controller.dll_init.designTSR)
         self.h2s.append('    maxpow %3.6e ;' %
                         (self.vartrees.dlls.risoe_controller.dll_init.ratedAeroPower))

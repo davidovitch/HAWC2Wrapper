@@ -62,7 +62,6 @@ class HAWC2BeamStructure(VariableTree):
     pitch = Array(desc='structural pitch relative to main axis.', units='deg')
     x_e = Array(desc='x-distance from main axis to center of elasticity', units='m')
     y_e = Array(desc='y-distance from main axis to center of elasticity', units='m')
-
     K_11 = Array(desc='Element 1,1 of the Sectional Constitutive Matrix', units='N*m**2')
     K_12 = Array(desc='Element 1,2 of the Sectional Constitutive Matrix', units='N*m**2')
     K_13 = Array(desc='Element 1,3 of the Sectional Constitutive Matrix', units='N*m**2')

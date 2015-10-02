@@ -700,10 +700,15 @@ class HAWC2InputReader(Component):
             self.set_entry(self.vartrees.h2s.options,
                            section, 'include_torsiondeform')
 
+
         self.vartrees.h2s.options = \
             self.set_entry(self.vartrees.h2s.options,
                            section, 'remove_torque_limits')
 
+        self.vartrees.h2s.options = \
+            self.set_entry(self.vartrees.h2s.options,
+                           section, 'remove_torque_limits')
+                           
     def read_operational_data_file(self):
 
         try:

@@ -436,7 +436,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
                 data = data.reshape(1, data.shape[0])
             loads = DistributedLoadsExtVT()
             disps = BeamDisplacementsVT()
-            loads.s = data[:, 0]   / self.blade_length
+            loads.s = data[:, 0] / self.blade_length
             loads.aoa = data[:, 4] * 180. / np.pi
             loads.Ft = data[:, 6]
             loads.Fn = data[:, 7]
@@ -935,7 +935,6 @@ class ComputeLoads(Component):
                     setattr(lc, name, np.zeros(load.s.shape[0]))
             lc.s = load.s
             r = load.s * self.pf.blade_length + self.hub_radius
-
             lc.case_id = lname
             lc.Fxm = np.zeros(load.s.shape[0])
             lc.Fym = np.zeros(load.s.shape[0])
@@ -960,6 +959,7 @@ class ComputeLoads(Component):
                 factor = 1.35
             else:
                 factor = 1.1
+            
             for i in range(load.s.shape[0]):
                 lc.Fx[i] = (np.trapz(Fx[i:] + Fxmass[i:], r[i:])) * factor
                 lc.Fy[i] = (np.trapz(Fy[i:] + Fymass[i:], r[i:])) * factor
@@ -989,4 +989,3 @@ class ComputeLoads(Component):
                         lv = c.copy()
                 lc.cases.append(lv.copy())
             self.lc.append(lc.copy())
-
