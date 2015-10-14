@@ -1,165 +1,173 @@
+from numpy import zeros, array, pi
+from vartrees import RotorVT, NacelleVT, GeneratorVT, TowerVT, ShaftVT, HubVT
 
-import numpy as np
-from openmdao.main.api import VariableTree
-from openmdao.lib.datatypes.api import Int, Str, Float, List, Array, Enum, Bool, VarTree, Dict
-from vartrees import *
 
-class HAWC2AirfoilPolar(VariableTree):
+class HAWC2AirfoilPolar(object):
     """A single airfoil polar"""
 
-    desc = Str()
-    rthick = Float()
-    aoa = Array()
-    cl = Array()
-    cd = Array()
-    cm = Array()
+    desc = ''
+    rthick = 0.0
+    aoa = zeros([1])
+    cl = zeros([1])
+    cd = zeros([1])
+    cm = zeros([1])
 
 
-class HAWC2AirfoilDataset(VariableTree):
+class HAWC2AirfoilDataset(object):
     """A set of airfoil polars for a range of relative thicknesses"""
 
-    np = Int(desc='number of airfoil polars in set')
-    rthick = Array(desc='Array of relative thicknesses linked to the airfoil polars')
-    polars = List(desc='List of polars')
+    np = 0  # number of airfoil polars in set
+    # Array of relative thicknesses linked to the airfoil polars
+    rthick = zeros([1])
+    polars = []  # List of polars
 
 
-class HAWC2AirfoilData(VariableTree):
+class HAWC2AirfoilData(object):
     """A list of airfoil datasets"""
 
-    nset = Int(desc='Number of airfoil datasets')
-    desc = Str(desc='String describing the airfoil data')
-    pc_sets = List(desc='List of airfoil datasets')
+    nset = 0  # Number of airfoil datasets
+    desc = ''  # String describing the airfoil data
+    pc_sets = []  # List of airfoil datasets
 
 
-class HAWC2BladeGeometry(VariableTree):
+class HAWC2BladeGeometry(object):
 
-    radius = Float()
-    s = Array(desc='Running length along blade axis')
-    c12axis = Array(desc='Pitch axis of blade')
-    chord = Array(desc='Blade chord')
-    rthick = Array(desc='Blade relative thickness')
-    twist = Array(desc='Blade twist (positive nose up!)')
-    aeset = Array(desc='Airfoil set')
-
-class HAWC2BeamStructure(VariableTree):
-
-    s = Array(desc='Running curve length of beam', units='m')
-    dm = Array(desc='Mass per unit length', units='kg/m')
-    x_cg = Array(desc='x-distance from blade axis to center of mass', units='m')
-    y_cg = Array(desc='y-distance from blade axis to center of mass', units='m')
-    ri_x = Array(desc='radius of gyration relative to elastic center.', units='m')
-    ri_y = Array(desc='radius of gyration relative to elastic center', units='m')
-    x_sh = Array(desc='x-distance from blade axis to shear center', units='m')
-    y_sh = Array(desc='y-distance from blade axis to shear center', units='m')
-    E = Array(desc='modulus of elasticity', units='N/m**2')
-    G = Array(desc='shear modulus of elasticity', units='N/m**2')
-    I_x = Array(desc='area moment of inertia with respect to principal bending xe axis', units='m**4')
-    I_y = Array(desc='area moment of inertia with respect to principal bending ye axis', units='m**4')
-    K = Array(desc='torsional stiffness constant with respect to ze axis at the shear center', units='m**4/rad')
-    k_x = Array(desc='shear factor for force in principal bending xe direction', units=None)
-    k_y = Array(desc='shear factor for force in principal bending ye direction', units=None)
-    A = Array(desc='cross sectional area', units='m**2')
-    pitch = Array(desc='structural pitch relative to main axis.', units='deg')
-    x_e = Array(desc='x-distance from main axis to center of elasticity', units='m')
-    y_e = Array(desc='y-distance from main axis to center of elasticity', units='m')
-    K_11 = Array(desc='Element 1,1 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_12 = Array(desc='Element 1,2 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_13 = Array(desc='Element 1,3 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_14 = Array(desc='Element 1,4 of the Sectional Constitutive Matrix', units='N*m**2')    
-    K_15 = Array(desc='Element 1,5 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_16 = Array(desc='Element 1,6 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_22 = Array(desc='Element 2,2 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_23 = Array(desc='Element 2,3 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_24 = Array(desc='Element 2,4 of the Sectional Constitutive Matrix', units='N*m**2')    
-    K_25 = Array(desc='Element 2,5 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_26 = Array(desc='Element 2,6 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_33 = Array(desc='Element 3,3 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_34 = Array(desc='Element 3,4 of the Sectional Constitutive Matrix', units='N*m**2')    
-    K_35 = Array(desc='Element 3,5 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_36 = Array(desc='Element 3,6 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_44 = Array(desc='Element 4,4 of the Sectional Constitutive Matrix', units='N*m**2')    
-    K_45 = Array(desc='Element 4,5 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_46 = Array(desc='Element 4,6 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_55 = Array(desc='Element 5,5 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_56 = Array(desc='Element 5,6 of the Sectional Constitutive Matrix', units='N*m**2')
-    K_66 = Array(desc='Element 6,6 of the Sectional Constitutive Matrix', units='N*m**2')
-
-class HAWC2OrientationBase(VariableTree):
-
-    body = Str(desc='mbdy name')
-    inipos = Array(np.zeros(3), desc='Initial position in global coordinates')
-    body_eulerang = List(desc='sequence of euler angle rotations, x->y->z')
+    radius = 0.0
+    s = zeros([1])  # Running length along blade axis
+    c12axis = zeros([1])  # Pitch axis of blade
+    chord = zeros([1])  # Blade chord
+    rthick = zeros([1])  # Blade relative thickness
+    twist = zeros([1])  # Blade twist (positive nose up!)
+    aeset = zeros([1])  # Airfoil set
 
 
-class HAWC2OrientationRelative(VariableTree):
+class HAWC2BeamStructure(object):
 
-    body1 = List(desc='Main body name to which the body is attached')
-    body2 = List(desc='Main body name to which the body is attached')
-    body2_eulerang = List(desc='sequence of euler angle rotations, x->y->z')
-    mbdy2_ini_rotvec_d1 = Array(np.zeros(4), desc='Initial rotation velocity of main body and all'
-                                     'subsequent attached bodies (vx, vy, vz, |v|)')
+    s = zeros([1])     # Running curve length of beam', units='m
+    dm = zeros([1])    # Mass per unit length', units='kg/m
+    x_cg = zeros([1])  # x-distance from blade axis to center of mass [m]
+    y_cg = zeros([1])  # y-distance from blade axis to center of mass [m]
+    ri_x = zeros([1])  # radius of gyration relative to elastic center. [m]
+    ri_y = zeros([1])  # radius of gyration relative to elastic center [m]
+    x_sh = zeros([1])  # x-distance from blade axis to shear center [m]
+    y_sh = zeros([1])  # y-distance from blade axis to shear center [m]
+    E = zeros([1])     # modulus of elasticity [N/m**2]
+    G = zeros([1])     # shear modulus of elasticity [N/m**2]
+    # area moment of inertia w.r.t. principal bending xe axis [m4]
+    I_x = zeros([1])
+    # area moment of inertia w.r.t. principal bending ye axis [m4]
+    I_y = zeros([1])
+    # torsional stiffness constant w.r.t. ze axis at the shear center [m4/rad]
+    K = zeros([1])
+    # shear factor for force in principal bending xe direction
+    k_x = zeros([1])
+    # shear factor for force in principal bending ye direction
+    k_y = zeros([1])
+    A = zeros([1])    # cross sectional area [m**2]
+    pitch = zeros([1])  # structural pitch relative to main axis. [deg]
+    x_e = zeros([1])   # x-distance from main axis to elastic center [m]
+    y_e = zeros([1])   # y-distance from main axis to elastic center [m]
+    K_11 = zeros([1])  # Elem. 1,1 of Sectional Constitutive Mat. [N*m**2]
+    K_12 = zeros([1])  # Elem. 1,2 of Sectional Constitutive Mat. [N*m**2]
+    K_13 = zeros([1])  # Elem. 1,3 of Sectional Constitutive Mat. [N*m**2]
+    K_14 = zeros([1])  # Elem. 1,4 of Sectional Constitutive Mat. [N*m**2]
+    K_15 = zeros([1])  # Elem. 1,5 of Sectional Constitutive Mat. [N*m**2]
+    K_16 = zeros([1])  # Elem. 1,6 of Sectional Constitutive Mat. [N*m**2]
+    K_22 = zeros([1])  # Elem. 2,2 of Sectional Constitutive Mat. [N*m**2]
+    K_23 = zeros([1])  # Elem. 2,3 of Sectional Constitutive Mat. [N*m**2]
+    K_24 = zeros([1])  # Elem. 2,4 of Sectional Constitutive Mat. [N*m**2]
+    K_25 = zeros([1])  # Elem. 2,5 of Sectional Constitutive Mat. [N*m**2]
+    K_26 = zeros([1])  # Elem. 2,6 of Sectional Constitutive Mat. [N*m**2]
+    K_33 = zeros([1])  # Elem. 3,3 of Sectional Constitutive Mat. [N*m**2]
+    K_34 = zeros([1])  # Elem. 3,4 of Sectional Constitutive Mat. [N*m**2]
+    K_35 = zeros([1])  # Elem. 3,5 of Sectional Constitutive Mat. [N*m**2]
+    K_36 = zeros([1])  # Elem. 3,6 of Sectional Constitutive Mat. [N*m**2]
+    K_44 = zeros([1])  # Elem. 4,4 of Sectional Constitutive Mat. [N*m**2]
+    K_45 = zeros([1])  # Elem. 4,5 of Sectional Constitutive Mat. [N*m**2]
+    K_46 = zeros([1])  # Elem. 4,6 of Sectional Constitutive Mat. [N*m**2]
+    K_55 = zeros([1])  # Elem. 5,5 of Sectional Constitutive Mat. [N*m**2]
+    K_56 = zeros([1])  # Elem. 5,6 of Sectional Constitutive Mat. [N*m**2]
+    K_66 = zeros([1])  # Elem. 6,6 of Sectional Constitutive Mat. [N*m**2]
 
 
-class HAWC2Constraint(VariableTree):
+class HAWC2OrientationBase(object):
 
-    con_name = Str()
-    con_type = Enum('free', ('fixed', 'fixed_to_body', 'free', 'prescribed_angle'), desc='Constraint type')
-    body1 = Str(desc='Main body name to which the body is attached')
-    DOF = Array(np.zeros(6), desc='Degrees of freedom')
-
-
-class HAWC2ConstraintFix0(VariableTree):
-
-    con_type = Str()
-    mbdy = Str(desc='Main body name')
-    disable_at = Float(desc='Time at which constraint can be disabled')
+    body = ''  # mbdy name
+    inipos = zeros(3)  # Initial position in global coordinates
+    body_eulerang = []  # sequence of euler angle rotations, x->y->z
 
 
-class HAWC2ConstraintFix1(VariableTree):
+class HAWC2OrientationRelative(object):
 
-    con_type = Str()
-    mbdy1 = List(desc='Main_body name to which the next main_body is fixed')
-    mbdy2 = List(desc='Main_body name of the main_body that is fixed to main_body1')
-    disable_at = Float(desc='Time at which constraint can be disabled')
-
-
-class HAWC2ConstraintFix23(VariableTree):
-
-    con_type = Str()
-    mbdy = Str(desc='Main_body name to which the next main_body is fixed')
-    dof = Array(np.zeros(3), desc='Direction in global coo that is fixed in rotation'
-                                  '0: free, 1: fixed')
+    body1 = []  # Main body name to which the body is attached
+    body2 = []  # Main body name to which the body is attached
+    body2_eulerang = []  # sequence of euler angle rotations, x->y->z
+    # Initial rotation velocity of main body and all subsequent attached bodies
+    # (vx, vy, vz, |v|)
+    mbdy2_ini_rotvec_d1 = zeros(4)
 
 
-class HAWC2ConstraintFix4(VariableTree):
+class HAWC2Constraint(object):
 
-    con_type = Str()
-    mbdy1 = List(desc='Main_body name to which the next main_body is fixed')
-    mbdy2 = List(desc='Main_body name of the main_body that is fixed to main_body1')
-    time = Float(2., desc='Time for the pre-stress process. Default=2 sec')
+    con_name = ''
+    con_type = 'free'  # 'fixed', 'fixed_to_body', 'free', 'prescribed_angle'
+    body1 = ''         # Main body name to which the body is attached
+    DOF = zeros(6)  # Degrees of freedom
 
 
-class HAWC2ConstraintBearing45(VariableTree):
+class HAWC2ConstraintFix0(object):
 
-    con_type = Str()
-    mbdy1 = List(desc='Main_body name to which the next main_body is fixed')
-    mbdy2 = List(desc='Main_body name of the main_body that is fixed to main_body1')
-    bearing_vector = Array(np.zeros(4), desc='Vector to which the free rotation is possible.'
-                                             'The direction of this vector also defines the coo to which the output angle is defined.'
-                                             '1. Coo. system used for vector definition (0=global,1=mbdy1,2=mbdy2)'
-                                             '2. x-axis'
-                                             '3. y-axis'
-                                             '4. z-axis')
+    con_type = ''
+    mbdy = ''  # Main body name
+    disable_at = 0.0  # Time at which constraint can be disabled
+
+
+class HAWC2ConstraintFix1(object):
+
+    con_type = ''
+    mbdy1 = []  # Main_body name to which the next main_body is fixed
+    mbdy2 = []  # Main_body name of the main_body that is fixed to main_body1
+    disable_at = 0.0  # Time at which constraint can be disabled
+
+
+class HAWC2ConstraintFix23(object):
+
+    con_type = ''
+    mbdy = ''  # Main_body name to which the next main_body is fixed
+    # Direction in global coo that is fixed in rotation 0: free, 1: fixed
+    dof = zeros(3)
+
+
+class HAWC2ConstraintFix4(object):
+
+    con_type = ''
+    mbdy1 = []  # Main_body name to which the next main_body is fixed
+    mbdy2 = []  # Main_body name of the main_body that is fixed to main_body1
+    time = 2.  # Time for the pre-stress process. Default=2 sec
+
+
+class HAWC2ConstraintBearing45(object):
+
+    con_type = ''
+    mbdy1 = []  # Main_body name to which the next main_body is fixed
+    mbdy2 = []  # Main_body name of the main_body that is fixed to main_body1
+    # Vector to which the free rotation is possible. The direction of this
+    # vector also defines the coo to which the output angle is defined
+    #  1. Coo. system used for vector definition (0=global,1=mbdy1,2=mbdy2)
+    #  2. x-axis
+    #  3. y-axis
+    #  4. z-axis
+    bearing_vector = zeros(4)
 
 
 class HAWC2ConstraintBearing12(HAWC2ConstraintBearing45):
 
-    disable_at = Float(desc='Time at which constraint can be disabled')
+    disable_at = 0.0  # Time at which constraint can be disabled
 
 
 class HAWC2ConstraintBearing3(HAWC2ConstraintBearing45):
 
-    omegas = Float(desc='Rotational speed')
+    omegas = 0.0  # Rotational speed
 
 
 con_dict = {'fix0': HAWC2ConstraintFix0,
@@ -173,25 +181,26 @@ con_dict = {'fix0': HAWC2ConstraintFix0,
             'bearing4': HAWC2ConstraintBearing45,
             'bearing5': HAWC2ConstraintBearing45}
 
-class HAWC2MainBody(VariableTree):
 
-    body_name = Str('body')
-    body_type = Str('timoschenko')
-    st_filename = Str()
-    st_input_type = Int()
-    beam_structure = List()
-    body_set = List([1, 1], desc='Index of beam structure set to use from st file')
-    nbodies = Int(1)
-    node_distribution = Str('c2_def')
-    damping_type = Str()
-    damping_posdef = Array(np.zeros(6))
-    damping_aniso = Array(np.zeros(6))    
-    copy_main_body = Str()
-    c12axis = Array(desc='C12 axis containing (x_c12, y_c12, z_c12, twist)')
-    concentrated_mass = List()
-    body_set = Array([1, 1])
-    orientations = List()
-    constraints = List()
+class HAWC2MainBody(object):
+
+    body_name = 'body'
+    body_type = 'timoschenko'
+    st_filename = ''
+    st_input_type = 1
+    beam_structure = []
+    body_set = [1, 1]  # Index of beam structure set to use from st file
+    nbodies = 1
+    node_distribution = 'c2_def'
+    damping_type = ''
+    damping_posdef = zeros(6)
+    damping_aniso = zeros(6)
+    copy_main_body = ''
+    c12axis = zeros([1])  # C12 axis containing (x_c12, y_c12, z_c12, twist)
+    concentrated_mass = []
+    body_set = array([1, 1])
+    orientations = []
+    constraints = []
 
     def add_orientation(self, orientation):
 
@@ -204,7 +213,8 @@ class HAWC2MainBody(VariableTree):
             self.orientations.append(o)
             return o
 
-    def add_constraint(self, con_type, con_name='con', body1='empty', DOF=np.zeros(6)):
+    def add_constraint(self, con_type, con_name='con', body1='empty',
+                       DOF=zeros(6)):
         """
         add a constraint
         """
@@ -235,16 +245,18 @@ class HAWC2MainBody(VariableTree):
         return con
 
 
-class HAWC2MainBodyList(VariableTree):
+class HAWC2MainBodyList(object):
+
+    def add(self, body_name, b):
+        setattr(self, body_name, b)
 
     def add_main_body(self, body_name, b):
 
         b.body_name = body_name
-        if not hasattr(self,body_name):
-            # setattr(self, body_name, b)
-            self.add(body_name, VarTree(b))
+        if not hasattr(self, body_name):
+            self.add(body_name, b)
         else:
-            print 'body: %s already added'% body_name
+            print 'body: %s already added' % body_name
 
     def remove_main_body(self, body_name):
 
@@ -253,145 +265,146 @@ class HAWC2MainBodyList(VariableTree):
         except:
             raise RuntimeError('Body %s not in list of bodies' % body_name)
 
-
     def get_main_body(self, body_name, add_if_missing=False):
 
         if not hasattr(self, body_name):
             if add_if_missing:
                 self.add_main_body(body_name, HAWC2MainBody())
             else:
-                raise RuntimeError('Error: Main body %s not present'%body_name)
+                raise RuntimeError('Error: Main body %s not present' %
+                                   body_name)
 
         return getattr(self, body_name)
 
-class HAWC2Simulation(VariableTree):
 
-    time_stop = Float(300, desc='Simulation stop time')
-    solvertype = Int(1, desc='Solver type. Default Newmark')
-    convergence_limits = List([1.0e3, 1.0, 0.7], desc='Sovler convergence limits')
-    on_no_convergence = Str()
-    max_iterations = Int(100, desc='Maximum iterations')
-    newmark_deltat = Float(0.02, desc='Newmark time step')
-    eig_out = Bool(False)
-    logfile = Str('hawc2_case.log')
+class HAWC2Simulation(object):
 
-
-class HAWC2Aero(VariableTree):
-
-    nblades = Int(3, desc='Number of blades')
-    hub_vec_mbdy_name = Str('shaft')
-    hub_vec_coo = Int(-3)
-    links = List()
-    induction_method = Enum(1, (0, 1), desc='BEM induction method, 0=none, 1=normal')
-    aerocalc_method = Enum(1, (0, 1), desc='BEM aero method, 0=none, 1=normal')
-    aerosections = Int(30, desc='Number of BEM aerodynamic sections')
-    tiploss_method = Enum(1, (0, 1), desc='BEM induction method, 0=none, 1=prandtl')
-    dynstall_method = Enum(2, (0, 1, 2), desc='BEM induction method, 0=none, 1=stig oeye method,2=mhh method')
-    ae_sets = List([1, 1, 1])
-    ae_filename = Str()
-    pc_filename = Str()
+    time_stop = 300.  # Simulation stop time
+    solvertype = 1    # Solver type. Default Newmark
+    convergence_limits = [1.0e3, 1.0, 0.7]  # Sovler convergence limits
+    on_no_convergence = ''
+    max_iterations = 100   # Maximum iterations
+    newmark_deltat = 0.02  # Newmark time step
+    eig_out = False
+    logfile = 'hawc2_case.log'
 
 
-class HAWC2Mann(VariableTree):
+class HAWC2Aero(object):
 
-    create_turb = Bool(True)
-    L = Float(29.4)
-    alfaeps = Float(1.0)
-    gamma = Float(3.7)
-    seed = Float()
-    highfrq_compensation = Float(1.)
-    turb_base_name = Str('mann_turb')
-    turb_directory = Str('turb')
-    box_nu = Int(8192)
-    box_nv = Int(32)
-    box_nw = Int(32)
-    box_du = Float(0.8056640625)
-    box_dv = Float(5.6)
-    box_dw = Float(5.6)
-    std_scaling = Array([1.0, 0.7, 0.5])
+    nblades = 3  # Number of blades
+    hub_vec_mbdy_name = 'shaft'
+    hub_vec_coo = -3
+    links = []
+    induction_method = 1  # (0, 1) BEM induction method, 0=none, 1=normal
+    aerocalc_method = 1   # (0, 1)  BEM aero method, 0=none, 1=normal
+    aerosections = 30     # Number of BEM aerodynamic sections
+    tiploss_method = 1    # BEM tiploss method, 0=none, 1=prandtl
+    dynstall_method = 2   # BEM dynamicstall method, 0=none, 1=stig oeye, 2=mhh
+    ae_sets = [1, 1, 1]
+    ae_filename = ''
+    pc_filename = ''
 
 
-class HAWC2Wind(VariableTree):
+class HAWC2Mann(object):
 
-    density = Float(1.225, desc='Density')
-    wsp = Float(desc='Hub height wind speed')
-    tint = Float(desc='Turbulence intensity')
-    horizontal_input = Enum(1, (0,1), desc='0=meteorological default, 1=horizontal')
-    center_pos0 = Array(np.zeros(3), desc='Turbulence box center start point in global coordinates.')
-    windfield_rotations = Array(np.zeros(3), desc='Orientation of the wind field, yaw, tilt, rotation.')
-    shear_type = Enum(1, (0,1,2,3,4), desc='Definition of the mean wind shear:'
-                                                '0=None,1=constant,2=logarithmic,3=power law,4=linear')
-    shear_factor = Float(0., desc='Shear parameter - depends on the shear type')
-    turb_format = Enum(0, (0,1,2), desc='Turbulence format (0=none, 1=mann, 2=flex)')
-    tower_shadow_method = Enum(0, (0,1,2,3), desc='Tower shadow model'
-                                                 '(0=none, 1=potential flow - default, 2=jet model, 3=potential_2')
-    scale_time_start = Float(desc='Starting time for turbulence scaling')
-
-    wind_ramp_t0 = Float(0., desc='Start time for wind ramp')
-    wind_ramp_t1 = Float(desc='End time for wind ramp')
-    wind_ramp_factor0 = Float(0., desc='Start factor for wind ramp')
-    wind_ramp_factor1 = Float(1., desc='End factor for wind ramp')
-
-    wind_ramp_abs = List()
-
-    iec_gust = Bool(False, desc='Flag for specifying an IEC gust')
-    iec_gust_type = Enum('eog', ('eog','edc','ecd','ews'), desc='IEC gust types')
-    G_A = Float()
-    G_phi0 = Float()
-    G_t0 = Float()
-    G_T = Float()
-    mann = VarTree(HAWC2Mann())
+    create_turb = True
+    L = 29.4
+    alfaeps = 1.0
+    gamma = 3.7
+    seed = 0.0
+    highfrq_compensation = 1.
+    turb_base_name = 'mann_turb'
+    turb_directory = 'turb'
+    box_nu = 8192
+    box_nv = 32
+    box_nw = 32
+    box_du = 0.8056640625
+    box_dv = 5.6
+    box_dw = 5.6
+    std_scaling = array([1.0, 0.7, 0.5])
 
 
-class HAWC2TowerPotential2(VariableTree):
+class HAWC2Wind(object):
 
-    tower_mbdy_link = Str('tower')
-    nsec = Int()
-    sections = List()
+    density = 1.225  # Density
+    wsp = 0.0   # Hub height wind speed
+    tint = 0.0  # Turbulence intensity
+    horizontal_input = 1  # 0=meteorological default, 1=horizontal
+    # Turbulence box center point in global coordinates
+    center_pos0 = zeros(3)
+    # Orientation of the wind field, yaw, tilt, rotation.
+    windfield_rotations = zeros(3)
+    # Definition of the mean wind shear:
+    # 0=None,1=constant,2=logarithmic,3=power law,4=linear
+    shear_type = 1
+    shear_factor = 0.  # Shear parameter - depends on the shear type
+    turb_format = 0    # Turbulence format (0=none, 1=mann, 2=flex)
+    # Tower shadow model 0=none, 1=potential flow, 2=jet model, 3=potential_2
+    tower_shadow_method = 0
+    scale_time_start = 0.0   # Starting time for turbulence scaling
+    wind_ramp_t0 = 0.   # Start time for wind ramp
+    wind_ramp_t1 = 0.0  # End time for wind ramp
+    wind_ramp_factor0 = 0.  # Start factor for wind ramp
+    wind_ramp_factor1 = 1.  # End factor for wind ramp
+    wind_ramp_abs = []
+    iec_gust = False       # Flag for specifying an IEC gust
+    iec_gust_type = 'eog'  # 'eog','edc','ecd','ews   # IEC gust types
+    G_A = 0.0
+    G_phi0 = 0.0
+    G_t0 = 0.0
+    G_T = 0.0
+    mann = HAWC2Mann()
 
 
-class HAWC2AeroDrag(VariableTree):
+class HAWC2TowerPotential2(object):
 
-    elements = List()
+    tower_mbdy_link = 'tower'
+    nsec = 1
+    sections = []
 
 
-class HAWC2AeroDragElement(VariableTree):
+class HAWC2AeroDrag(object):
 
-    mbdy_name = Str()
-    dist = Str()
-    nsec = Int()
-    sections = List()
-	
+    elements = []
 
-class HAWC2OutputListVT(VariableTree):
-    
-    sensor_list = List()
+
+class HAWC2AeroDragElement(object):
+
+    mbdy_name = ''
+    dist = ''
+    nsec = 1
+    sections = []
+
+
+class HAWC2OutputListVT(object):
+
+    sensor_list = []
 
     def set_outputs(self, entries):
 
         for i, c in enumerate(entries):
             if c.name in ['filename', 'time', 'data_format', 'buffer']:
                 continue
-            self.sensor_list.append(c.name + ' ' + ' '.join([str(val) for val in _makelist(c.val)]))
-            self.add('out_%i' % (i + 1), Array(desc='Output %i of type2_dll %s: %s' % ((i + 1), self.name, c.name + ' ' +
-                                               ' '.join([str(val) for val in _makelist(c.val)]))))
+            self.sensor_list.append(c.name + ' ' + ' '.join(
+                [str(val) for val in _makelist(c.val)]))
+            setattr(self, 'out_%i' % (i + 1), zeros([1]))
 
 
 class HAWC2OutputVT(HAWC2OutputListVT):
 
-    time_start = Float(0.)
-    time_stop = Float()
-    out_format = Str('hawc_ascii')
-    out_buffer = Int(1)
+    time_start = 0.
+    time_stop = 0.0
+    out_format = 'hawc_ascii'
+    out_buffer = 1
 
 
-
-class HAWC2Type2DLLinit(VariableTree):
+class HAWC2Type2DLLinit(object):
 
     def set_constants(self, constants):
 
         for i, c in enumerate(constants):
-            self.add('constant%i' % (i + 1), Float(c.val[1], desc='Constant %i of type2_dll %s' % ((i + 1), self.parent.name)))
+            self.add('constant%i' % (i + 1), c.val[1])
+
 
 def _makelist(val):
 
@@ -400,29 +413,28 @@ def _makelist(val):
     else:
         return [val]
 
-class HAWC2Type2DLLoutput(VariableTree):
+
+class HAWC2Type2DLLoutput(object):
 
     def set_outputs(self, entries):
 
         for i, c in enumerate(entries):
-            self.add('out_%i' % (i + 1), Array(desc='Output %i of type2_dll %s: %s' % ((i + 1), self.parent.name, c.name + ' ' +
-                                               ' '.join([str(val) for val in _makelist(c.val)]))))
+            self.add('out_%i' % (i + 1), zeros([1]))
 
 
-class HAWC2Type2DLL(VariableTree):
+class HAWC2Type2DLL(object):
 
-    name = Str(desc='Reference name of this DLL (to be used with DLL output commands)')
-    filename = Str(desc='Filename incl. relative path of the DLL (example ./DLL/control.dll)')
-    dll_subroutine_init = Str(desc='Name of initialization subroutine in DLL that is addressed'
-                                '(remember to specify the name in the DLL with small letters!)')
-    dll_subroutine_update = Str(desc='Name of subroutine in DLL that is addressed at every time step'
-                                '(remember to specify the name in the DLL with small letters!)')
-    arraysizes_init = List(desc='size of array with outgoing/ingoing data in the initialization call')
-    arraysizes_update = List(desc='size of array with outgoing/ingoing data in the update call')
-    deltat = Float(desc='Time between dll calls.')
-    dll_init = VarTree(HAWC2Type2DLLinit(), desc='Slot for DLL specific variable tree')
-    output = VarTree(HAWC2Type2DLLoutput(), desc='Outputs for DLL specific variable tree')
-    actions = VarTree(HAWC2Type2DLLoutput(), desc='Actions for DLL specific variable tree')
+    name = ''  # Reference name of DLL (to be used with DLL output commands)
+    filename = ''  # Filename incl. relative path of the DLL
+    dll_subroutine_init = ''  # Name of initialization subroutine in DLL
+    # Name of subroutine in DLL that is addressed at every time step
+    dll_subroutine_update = ''
+    arraysizes_init = []    # size of array in the initialization call
+    arraysizes_update = []  # size of array in the update call
+    deltat = 0.0            # Time between dll calls.
+    dll_init = HAWC2Type2DLLinit()   # Slot for DLL specific variable tree
+    output = HAWC2Type2DLLoutput()   # Outputs for DLL specific variable tree
+    actions = HAWC2Type2DLLoutput()  # Actions for DLL specific variable tree
 
     def set_init(self, name):
         """
@@ -433,7 +445,8 @@ class HAWC2Type2DLL(VariableTree):
             klass = type2_dll_dict[name]
             self.dll_init = klass()
         except:
-            self._logger.warning('No init vartree available for %s, falling back on default HAWC2Type2DLLinit' % self.name)
+            self._logger.warning('No init vartree available for %s, falling \
+                                back on default HAWC2Type2DLLinit' % self.name)
         return self.dll_init
 
     def set_output(self, name):
@@ -442,10 +455,11 @@ class HAWC2Type2DLL(VariableTree):
         name string defined in the type2_dll interface
         """
         try:
-            klass = type2_dll_out_dict[name]
+            klass = type2_dll_out_dict[name]  # TODO:
             self.output = klass()
         except:
-            self._logger.warning('No output vartree available for %s, falling back on default HAWC2Type2DLLoutput' % self.name)
+            self._logger.warning('No output vartree available for %s, falling \
+                            back on default HAWC2Type2DLLoutput' % self.name)
         return self.output
 
     def set_actions(self, name):
@@ -454,21 +468,23 @@ class HAWC2Type2DLL(VariableTree):
         name string defined in the type2_dll interface
         """
         try:
-            klass = type2_dll_action_dict[name]
+            klass = type2_dll_action_dict[name]  # TODO:
             self.actions = klass()
         except:
-            self._logger.warning('No actions vartree available for %s, falling back on default HAWC2Type2DLLoutput' % self.name)
+            self._logger.warning('No actions vartree available for %s, falling\
+                            back on default HAWC2Type2DLLoutput' % self.name)
         return self.actions
 
-class HAWC2Type2DLLList(VariableTree):
+
+class HAWC2Type2DLLList(object):
 
     def add_dll(self, dll_name, b):
 
         b.dll_name = dll_name
         if not hasattr(self, dll_name):
-            self.add(dll_name, VarTree(b))
+            setattr(self, dll_name, b)
         else:
-            print 'dll: %s already added'% dll_name
+            print 'dll: %s already added' % dll_name
 
 
 class DTUBasicControllerVT(HAWC2Type2DLLinit):
@@ -476,188 +492,184 @@ class DTUBasicControllerVT(HAWC2Type2DLLinit):
     Variable tree for DTU Basic Controller inputs
     """
 
-    Vin  = Float(4., units='m/s')
-    Vout = Float(25., units='m/s')
-    nV = Int(22)
+    Vin = 4.   # [m/s]
+    Vout = 25.  # [m/s]
+    nV = 22
 
-    ratedPower = Float(units='W')
-    ratedAeroPower = Float(units='W')
+    ratedPower = 0.0  # [W]
+    ratedAeroPower = 0.0  # [W]
 
-    minRPM = Float(units='rpm')
-    maxRPM = Float(units='rpm')
+    minRPM = 0.0  # [rpm]
+    maxRPM = 0.0  # [rpm]
+    gearRatio = 0.0
+    designTSR = 7.5
+    active = True
+    FixedPitch = False
 
-    gearRatio = Float(units=None)
+    maxTorque = 15.6e6   # Maximum allowable generator torque [N*m]
+    minPitch = 100.      # minimum pitch angle [deg]
+    maxPitch = 90.       # maximum pith angle [deg]
+    maxPitchSpeed = 10.  # Maximum pitch velocity operation [deg/s]
+    maxPitchAcc = 8.
+    generatorFreq = 0.2     # Frequency of generator speed filter [Hz]
+    generatorDamping = 0.7  # Damping ratio of speed filter
+    ffFreq = 1.85    # Frequency of free-free DT torsion mode [Hz]
+    Qg = 0.1001E+08  # Optimal Cp tracking K factor [kN*m/(rad/s)**2]
+    pgTorque = 0.683E+08  # Proportional gain of torque controller [Nm/(rad/s)]
+    igTorque = 0.153E+08  # Integral gain of torque controller [N*m/rad]
+    dgTorque = 0.  # Differential gain of torque controller [N*m/(rad/s**2)]
+    pgPitch = 0.524E+00  # Proportional gain of torque controller [N*m/(rad/s)]
+    igPitch = 0.141E+00  # Integral gain of torque controller [N*m/rad]
+    dgPitch = 0.  # Differential gain of torque controller [N*m/(rad/s**2)]
+    prPowerGain = 0.4e-8   # Proportional power error gain
+    intPowerGain = 0.4e-8  # Proportional power error gain
+    # Generator control switch 1=constant power, 2=constant torque
+    generatorSwitch = 1
+    KK1 = 198.32888  # Coefficient of linear term in aero gain scheduling
+    KK2 = 693.22213  # Coefficient of quadratic term in aero gain scheduling
+    nlGainSpeed = 1.3  # Relative speed for double nonlinear gain
+    softDelay = 4.     # Time delay for soft start of torque
+    cutin_t0 = 0.1
+    stop_t0 = 860.
+    TorqCutOff = 5.
+    PitchDelay1 = 1.
+    PitchVel1 = 1.5
+    PitchDelay2 = 1.
+    PitchVel2 = 2.04
+    generatorEfficiency = 0.94
+    overspeed_limit = 1500.
+    minServoPitch = 0         # maximum pith angle [deg]
+    maxServoPitchSpeed = 30.  # Maximum pitch velocity operation [deg/s]
+    maxServoPitchAcc = 8.
 
-    designTSR = Float(7.5)
+    poleFreqTorque = 0.05
+    poleDampTorque = 0.7
+    poleFreqPitch = 0.1
+    poleDampPitch = 0.7
 
-    active = Bool(True)
-    FixedPitch = Bool(False)
-
-    maxTorque = Float(15.6e6, desc='Maximum allowable generator torque', units='N*m')
-    minPitch = Float(100, desc='minimum pitch angle', units='deg')
-    maxPitch = Float(90, desc='maximum pith angle', units='deg')
-    maxPitchSpeed = Float(10, desc='Maximum pitch velocity operation', units='deg/s')
-    maxPitchAcc = Float(8)
-    generatorFreq = Float(0.2, desc='Frequency of generator speed filter', units='Hz')
-    generatorDamping = Float(0.7, desc='Damping ratio of speed filter')
-    ffFreq = Float(1.85, desc='Frequency of free-free DT torsion mode', units='Hz')
-    Qg = Float(0.100131E+08, desc='Optimal Cp tracking K factor', units='kN*m/(rad/s)**2')
-    pgTorque = Float(0.683456E+08, desc='Proportional gain of torque controller', units='N*m/(rad/s)')
-    igTorque = Float(0.153367E+08, desc='Integral gain of torque controller', units='N*m/rad')
-    dgTorque = Float(0., desc='Differential gain of torque controller', units='N*m/(rad/s**2)')
-    pgPitch = Float(0.524485E+00, desc='Proportional gain of torque controller', units='N*m/(rad/s)')
-    igPitch = Float(0.141233E+00, desc='Integral gain of torque controller', units='N*m/rad')
-    dgPitch = Float(0., desc='Differential gain of torque controller', units='N*m/(rad/s**2)')
-    prPowerGain = Float(0.4e-8, desc='Proportional power error gain')
-    intPowerGain = Float(0.4e-8, desc='Proportional power error gain')
-    generatorSwitch = Int(1, desc='Generator control switch [1=constant power, 2=constant torque]')
-    KK1 = Float(198.32888, desc='Coefficient of linear term in aerodynamic gain scheduling')
-    KK2 = Float(693.22213, desc='Coefficient of quadratic term in aerodynamic gain scheduling')
-    nlGainSpeed = Float(1.3, desc='Relative speed for double nonlinear gain')
-    softDelay = Float(4., desc='Time delay for soft start of torque')
-    cutin_t0 = Float(0.1)
-    stop_t0 = Float(860.)
-    TorqCutOff = Float(5)
-    PitchDelay1 = Float(1)
-    PitchVel1 = Float(1.5)
-    PitchDelay2 = Float(1.)
-    PitchVel2 = Float(2.04)
-    generatorEfficiency = Float(0.94)
-    overspeed_limit = Float(1500)
-    minServoPitch = Float(0, desc='maximum pith angle', units='deg')
-    maxServoPitchSpeed = Float(30, desc='Maximum pitch velocity operation', units='deg/s')
-    maxServoPitchAcc = Float(8)
-
-    poleFreqTorque = Float(0.05)
-    poleDampTorque = Float(0.7)
-    poleFreqPitch  = Float(0.1)
-    poleDampPitch  = Float(0.7)
-
-    gainScheduling = Enum(2, (1, 2), 
-                          desc = 'Gain scheduling [1: linear, 2: quadratic]')
-    prvs_turbine = Enum(0, (0, 1), 
-                        desc = '[0: pitch regulated, 1: stall regulated]')
-    rotorspeed_gs = Enum(0, (0, 1),
-                         desc = 'Gain scheduling [0:standard, 1:with damping]')
-    Kp2 = Float(0.0, desc='Additional gain-scheduling param. kp_speed')
-    Ko1 = Float(1.0, desc='Additional gain-scheduling param. invkk1_speed')
-    Ko2 = Float(0.0, desc='Additional gain-scheduling param. invkk2_speed')
+    gainScheduling = 2  # Gain scheduling [1: linear, 2: quadratic]
+    prvs_turbine = 0    # [0: pitch regulated, 1: stall regulated]
+    rotorspeed_gs = 0   # Gain scheduling [0:standard, 1:with damping]
+    Kp2 = 0.0  # Additional gain-scheduling param. kp_speed
+    Ko1 = 1.0  # Additional gain-scheduling param. invkk1_speed
+    Ko2 = 0.0  # Additional gain-scheduling param. invkk2_speed
 
     def set_constants(self, constants):
 
         for i, c in enumerate(constants):
-            if   c.val[0] ==  1 :  self.ratedPower = c.val[1] * 1.e3
-            elif c.val[0] ==  2 :  self.minRPM   = c.val[1] * 60./(2*np.pi)
-            elif c.val[0] ==  3 :  self.maxRPM   = c.val[1] * 60./(2*np.pi)
-            elif c.val[0] ==  4 :  self.maxTorque  = c.val[1]
-            elif c.val[0] ==  5 :  self.minPitch   = c.val[1]
-            elif c.val[0] ==  6 :  self.maxPitch   = c.val[1]
-            elif c.val[0] ==  7 :  self.maxPitchSpeed = c.val[1]
-            elif c.val[0] ==  8 :  self.generatorFreq = c.val[1]
-            elif c.val[0] ==  9 :  self.generatorDamping = c.val[1]
-            elif c.val[0] == 10 :  self.ffFreq = c.val[1]
-            elif c.val[0] == 11 :  self.Qg = c.val[1]
-            elif c.val[0] == 12 :  self.pgTorque = c.val[1]
-            elif c.val[0] == 13 :  self.igTorque = c.val[1]
-            elif c.val[0] == 14 :  self.dgTorque = c.val[1]
-            elif c.val[0] == 15 :  self.generatorSwitch = c.val[1]
-            elif c.val[0] == 16 :  self.pgPitch  = c.val[1]
-            elif c.val[0] == 17 :  self.igPitch  = c.val[1]
-            elif c.val[0] == 18 :  self.dgPitch  = c.val[1]
-            elif c.val[0] == 19 :  self.prPowerGain = c.val[1]
-            elif c.val[0] == 20 :  self.intPowerGain = c.val[1]
-            elif c.val[0] == 21 :  self.KK1 = c.val[1]
-            elif c.val[0] == 22 :  self.KK2 = c.val[1]
-            elif c.val[0] == 23 :  self.nlGainSpeed = c.val[1]
-            elif c.val[0] == 24 :  self.cutin_t0 = c.val[1]
-            elif c.val[0] == 25 :  self.softDelay = c.val[1]
-            elif c.val[0] == 26 :  self.stop_t0 = c.val[1]
-            elif c.val[0] == 27 :  self.TorqCutOff = c.val[1]
-            elif c.val[0] == 29 :  self.PitchDelay1= c.val[1]
-            elif c.val[0] == 30 :  self.PitchVel1  = c.val[1]
-            elif c.val[0] == 31 :  self.PitchDelay2= c.val[1]
-            elif c.val[0] == 32 :  self.PitchVel2  = c.val[1]
-            elif c.val[0] == 39 :  self.overspeed_limit = c.val[1]
+            if   c.val[0] ==  1: self.ratedPower = c.val[1] * 1.e3
+            elif c.val[0] ==  2: self.minRPM = c.val[1] * 60./(2.*pi)
+            elif c.val[0] ==  3: self.maxRPM = c.val[1] * 60./(2.*pi)
+            elif c.val[0] ==  4: self.maxTorque = c.val[1]
+            elif c.val[0] ==  5: self.minPitch = c.val[1]
+            elif c.val[0] ==  6: self.maxPitch = c.val[1]
+            elif c.val[0] ==  7: self.maxPitchSpeed = c.val[1]
+            elif c.val[0] ==  8: self.generatorFreq = c.val[1]
+            elif c.val[0] ==  9: self.generatorDamping = c.val[1]
+            elif c.val[0] == 10: self.ffFreq = c.val[1]
+            elif c.val[0] == 11: self.Qg = c.val[1]
+            elif c.val[0] == 12: self.pgTorque = c.val[1]
+            elif c.val[0] == 13: self.igTorque = c.val[1]
+            elif c.val[0] == 14: self.dgTorque = c.val[1]
+            elif c.val[0] == 15: self.generatorSwitch = c.val[1]
+            elif c.val[0] == 16: self.pgPitch  = c.val[1]
+            elif c.val[0] == 17: self.igPitch  = c.val[1]
+            elif c.val[0] == 18: self.dgPitch  = c.val[1]
+            elif c.val[0] == 19: self.prPowerGain = c.val[1]
+            elif c.val[0] == 20: self.intPowerGain = c.val[1]
+            elif c.val[0] == 21: self.KK1 = c.val[1]
+            elif c.val[0] == 22: self.KK2 = c.val[1]
+            elif c.val[0] == 23: self.nlGainSpeed = c.val[1]
+            elif c.val[0] == 24: self.cutin_t0 = c.val[1]
+            elif c.val[0] == 25: self.softDelay = c.val[1]
+            elif c.val[0] == 26: self.stop_t0 = c.val[1]
+            elif c.val[0] == 27: self.TorqCutOff = c.val[1]
+            elif c.val[0] == 29: self.PitchDelay1= c.val[1]
+            elif c.val[0] == 30: self.PitchVel1  = c.val[1]
+            elif c.val[0] == 31: self.PitchDelay2= c.val[1]
+            elif c.val[0] == 32: self.PitchVel2  = c.val[1]
+            elif c.val[0] == 39: self.overspeed_limit = c.val[1]
 
             # pick up the rest of the controller constants in generic variables
             else:
-                self.add('constant%i' % (i + 1), Float(c.val[1], desc='Constant %i of type2_dll %s' % ((i + 1), self.name)))
+                self.add('constant%i' % (i + 1), c.val[1])
 
 
-type2_dll_dict={'risoe_controller': DTUBasicControllerVT}
+type2_dll_dict = {'risoe_controller': DTUBasicControllerVT}
 
 
-class HAWC2SCommandsOpt(VariableTree):
+class HAWC2SCommandsOpt(object):
 
-    include_torsiondeform = Int(1)
-    bladedeform = Str('bladedeform')
-    tipcorrect  = Str('tipcorrect')
-    induction   = Str('induction')
-    gradients   = Str('gradients')
-    blade_only  = Bool(False)
-    matrixwriteout     = Str('nomatrixwriteout')
-    eigenvaluewriteout = Str('noeigenvaluewriteout')
-    frequencysorting   = Str('modalsorting')
-    number_of_modes     = Int(10)
-    maximum_damping     = Float(0.5)
-    minimum_frequency   = Float(0.5)
-    zero_pole_threshold = Float(0.1)
-    aero_deflect_ratio  = Float(0.01)
-    vloc_out  = Bool(False)
-    regions = Array()
-    remove_torque_limits = Int(0)
+    include_torsiondeform = 1
+    bladedeform = 'bladedeform'
+    tipcorrect = 'tipcorrect'
+    induction = 'induction'
+    gradients = 'gradients'
+    blade_only = False
+    matrixwriteout = 'nomatrixwriteout'
+    eigenvaluewriteout = 'noeigenvaluewriteout'
+    frequencysorting = 'modalsorting'
+    number_of_modes = 10
+    maximum_damping = 0.5
+    minimum_frequency = 0.5
+    zero_pole_threshold = 0.1
+    aero_deflect_ratio = 0.01
+    vloc_out = False
+    regions = zeros([1])
+    remove_torque_limits = 0
 
-class HAWC2SBody(VariableTree):
 
-    main_body = List()
-    log_decrements = Array(np.zeros(6))
+class HAWC2SBody(object):
 
-class SecondOrderActuator(VariableTree):
+    main_body = []
+    log_decrements = zeros(6)
 
-    name = Str('pitch1')
-    frequency = Float(100)
-    damping = Float(0.9)
 
-class HAWC2SVar(VariableTree):
+class SecondOrderActuator(object):
 
-    ground_fixed         = VarTree(HAWC2SBody())
-    rotating_axissym     = VarTree(HAWC2SBody())
-    rotating_threebladed = VarTree(HAWC2SBody())
-    second_order_actuator = VarTree(SecondOrderActuator())
-    commands = List()
-    options  = VarTree(HAWC2SCommandsOpt())
-    operational_data_filename = Str()
-    ch_list_in = VarTree(HAWC2OutputListVT())
-    ch_list_out = VarTree(HAWC2OutputListVT())
+    name = 'pitch1'
+    frequency = 100.
+    damping = 0.9
 
-    wsp_curve = Array(desc='Pitch curve from operational data file')
-    pitch_curve = Array(desc='Pitch curve from operational data file')
-    rpm_curve = Array(desc='RPM curve from operational data file')
-    wsp_cases = List()
-    cases = List(desc='List of input dictionaries with wsp, rpm and pitch')
 
-    
-class HAWC2VarTrees(VariableTree):
+class HAWC2SVar(object):
 
-    sim  = VarTree(HAWC2Simulation())
-    wind = VarTree(HAWC2Wind())
-    aero = VarTree(HAWC2Aero())
-    aerodrag = VarTree(HAWC2AeroDrag())
-    blade_ae = VarTree(HAWC2BladeGeometry())
-    blade_structure = List() 
-    airfoildata = VarTree(HAWC2AirfoilData())
+    ground_fixed = HAWC2SBody()
+    rotating_axissym = HAWC2SBody()
+    rotating_threebladed = HAWC2SBody()
+    second_order_actuator = SecondOrderActuator()
+    commands = []
+    options = HAWC2SCommandsOpt()
+    operational_data_filename = ''
+    ch_list_in = HAWC2OutputListVT()
+    ch_list_out = HAWC2OutputListVT()
 
-    output     = VarTree(HAWC2OutputVT())
+    wsp_curve = zeros([1])  # Pitch curve from operational data file
+    pitch_curve = zeros([1])  # Pitch curve from operational data file
+    rpm_curve = zeros([1])  # RPM curve from operational data file
+    wsp_cases = []
+    cases = []  # List of input dictionaries with wsp, rpm and pitch
 
-    rotor   = VarTree(RotorVT())
-    nacelle = VarTree(NacelleVT())
-    generator = VarTree(GeneratorVT())
-    tower = VarTree(TowerVT())
-    shaft = VarTree(ShaftVT())
-    hub   = VarTree(HubVT())
 
-    body_order = List()
-    main_bodies = VarTree(HAWC2MainBodyList())
-    dlls = VarTree(HAWC2Type2DLLList())
+class HAWC2VarTrees(object):
 
-    h2s = VarTree(HAWC2SVar())
+    sim = HAWC2Simulation()
+    wind = HAWC2Wind()
+    aero = HAWC2Aero()
+    aerodrag = HAWC2AeroDrag()
+    blade_ae = HAWC2BladeGeometry()
+    blade_structure = []
+    airfoildata = HAWC2AirfoilData()
+    output = HAWC2OutputVT()
+    rotor = RotorVT()
+    nacelle = NacelleVT()
+    generator = GeneratorVT()
+    tower = TowerVT()
+    shaft = ShaftVT()
+    hub = HubVT()
+
+    body_order = []
+    main_bodies = HAWC2MainBodyList()
+    dlls = HAWC2Type2DLLList()
+
+    h2s = HAWC2SVar()
