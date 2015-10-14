@@ -1,189 +1,186 @@
-import numpy as np
-from openmdao.main.api import VariableTree
-from openmdao.lib.datatypes.api import Int, Float, Array, List, Str, Enum, Bool, VarTree
+from numpy import zeros
 
 
+class RotorVT(object):
+
+    hub_height = 0.0  # Hub height
+    nblades = 3       # Number of blades
+    tilt_angle = 0.0  # Tilt angle
+    cone_angle = 0.0  # Cone angle
+    diameter = 0.0    # Rotor diameter
 
 
-class RotorVT(VariableTree):
+class BladeVT(object):
 
-    hub_height = Float(desc='Hub height')
-    nblades = Int(desc='Number of blades')
-    tilt_angle = Float(desc='Tilt angle')
-    cone_angle = Float(desc='Cone angle')
-    diameter = Float(desc='Rotor diameter')
-    # mass = Float(desc='Total mass')
-    # overhang = Float(desc='Rotor overhang')
-
-
-class BladeVT(VariableTree):
-
-    length = Float(desc='blade length')
-    mass = Float(desc='blade mass')
-    I_x = Float(desc='first area moment of inertia')
-    I_y = Float(desc='Second area moment of inertia')
-    root_chord = Float(desc='Blade root chord')
-    max_chord = Float(desc='Blade maximum chord')
-    tip_chord = Float(desc='Blade tip chord')
-    airfoils = List(desc='List of airfoil names used on blade')
+    length = 0.0   # blade length
+    mass = 0.0     # blade mass
+    I_x = 0.0      # first area moment of inertia
+    I_y = 0.0      # Second area moment of inertia
+    root_chord = 0.0  # Blade root chord
+    max_chord = 0.0   # Blade maximum chord
+    tip_chord = 0.0   # Blade tip chord
+    airfoils = []     # List of airfoil names used on blade
 
 
-class HubVT(VariableTree):
+class HubVT(object):
 
-    diameter = Float(desc='blade length')
-    mass = Float(desc='blade mass')
-    I_x = Float(desc='first area moment of inertia')
-    I_y = Float(desc='Second area moment of inertia')
-    CM = Array(np.zeros(3), desc='')
-
-
-class NacelleVT(VariableTree):
-
-    mass = Float(desc='blade mass')
-    I_x = Float(desc='first area moment of inertia')
-    I_y = Float(desc='Second area moment of inertia')
-    CM = Array(np.zeros(3), desc='')
-    diameter = Float()
-
-class ShaftVT(VariableTree):
-
-    mass = Float(desc='blade mass')
-    I_x = Float(desc='first area moment of inertia')
-    I_y = Float(desc='Second area moment of inertia')
-    CM = Array(np.zeros(3), desc='')
-    length = Float()
-
-class GeneratorVT(VariableTree):
-
-    mass = Float(desc='blade mass')
-    I_x = Float(desc='first area moment of inertia')
-    I_y = Float(desc='Second area moment of inertia')
-    power = Float(desc='Generator power')
-    max_torque = Float(desc='Maximum allowable generator torque')
-    efficiency = Float(desc='Generator efficiency')
+    diameter = 0.0  # blade length
+    mass = 0.0      # blade mass
+    I_x = 0.0       # first area moment of inertia
+    I_y = 0.0       # Second area moment of inertia
+    CM = zeros(3)
 
 
-class TransmissionVT(VariableTree):
+class NacelleVT(object):
 
-    gear_ratio = Float(desc='Transmission gear ratio')
-
-
-class TowerVT(VariableTree):
-
-    height = Float(desc='Tower height')
-    bottom_diameter = Float(desc='Tower bottom diameter')
-    top_diameter = Float(desc='Tower bottom diameter')
-    mass = Float(desc='Tower mass')
+    mass = 0.0  # blade mass
+    I_x = 0.0   # first area moment of inertia
+    I_y = 0.0   # Second area moment of inertia
+    CM = zeros(3)
+    diameter = 0.0
 
 
-class BeamGeometryVT(VariableTree):
+class ShaftVT(object):
 
-    s = Array(desc='Blade main axis accumulated curve length (n)')
-    main_axis = Array(desc='Blade main axis (n,3)')
-    rot_x = Array(desc='x-rotation angle (n)')
-    rot_y = Array(desc='y-rotation angle (n)')
-    rot_z = Array(desc='z-rotation angle (n)')
+    mass = 0.0  # blade mass
+    I_x = 0.0   # first area moment of inertia
+    I_y = 0.0   # Second area moment of inertia
+    CM = zeros(3)
+    length = 0.0
+
+
+class GeneratorVT(object):
+
+    mass = 0.0        # blade mass
+    I_x = 0.0         # first area moment of inertia
+    I_y = 0.0         # Second area moment of inertia
+    power = 0.0       # Generator power
+    max_torque = 0.0  # Maximum allowable generator torque
+    efficiency = 0.0  # Generator efficiency
+
+
+class TransmissionVT(object):
+
+    gear_ratio = 0.0  # Transmission gear ratio
+
+
+class TowerVT():
+
+    height = 0.0           # Tower height
+    bottom_diameter = 0.0  # Tower bottom diameter
+    top_diameter = 0.0     # Tower bottom diameter
+    mass = 0.0             # Tower mass
+
+
+class BeamGeometryVT(object):
+
+    s = zeros([1])             # Blade main axis accumulated curve length (n)
+    main_axis = zeros([1, 3])  # Blade main axis (n,3)
+    rot_x = zeros([1])         # x-rotation angle (n)
+    rot_y = zeros([1])         # y-rotation angle (n)
+    rot_z = zeros([1])         # z-rotation angle (n)
 
 
 class BladeGeometryVT(BeamGeometryVT):
 
-    chord = Array(desc='Blade chord (n)')
-    rthick = Array(desc='Blade relative thickness (n)')
-    athick = Array(desc='Blade absolute thickness (n)')
-    p_le = Array(desc='normalized distance along chord line from leading edge to main axis (n)')
+    chord = zeros([1])   # Blade chord (n)
+    rthick = zeros([1])  # Blade relative thickness (n)
+    athick = zeros([1])  # Blade absolute thickness (n)
+    p_le = zeros([1])    # normalized distance along chord line from
+                            #  leading edge to main axis (n)
 
 
-class DistributedLoadsVT(VariableTree):
+class DistributedLoadsVT(object):
 
-    s = Array(units='m', desc='locations for distributed loads')
-    Fn = Array(units='N/m', desc='force per unit length in normal direction to the blade')
-    Ft = Array(units='N/m', desc='force per unit length in tangential direction to the blade')
+    s = zeros([1])   # locations for distributed loads
+    Fn = zeros([1])  # force per unit length in normal direction to the blade
+    Ft = zeros([1])  # force per unit length in tangential direction to the blade
 
 
 class DistributedLoadsExtVT(DistributedLoadsVT):
 
-    cn  = Array(units=None, desc='Normal force coefficient along the blade')
-    ct  = Array(units=None, desc='Tangential force coefficient along the blade')
-    cl  = Array(units=None, desc='Lift force coefficient along the blade')
-    cd  = Array(units=None, desc='Drag force coefficient along the blade')
-    cm  = Array(units=None, desc='Moment force coefficient along the blade')
-    aoa = Array(units='deg', desc='Angle of attack along the blade')
-    lfa = Array(units='deg', desc='Local flow angle along the blade')
-    v_a = Array(units='m/s', desc='axial velocity along the blade')
-    v_t = Array(units='m/s', desc='tangential velocity along the blade')
-    v_r = Array(units='m/s', desc='radial velocity along the blade')
-    lcp = Array(units=None, desc='Local power coefficient along the blade')
-    lct = Array(units=None, desc='Local power coefficient along the blade')
+    cn = zeros([1])  # Normal force coefficient along the blade
+    ct = zeros([1])  # Tangential force coefficient along the blade
+    cl = zeros([1])  # Lift force coefficient along the blade
+    cd = zeros([1])  # Drag force coefficient along the blade
+    cm = zeros([1])  # Moment force coefficient along the blade
+    aoa = zeros([1])  # [deg] Angle of attack along the blade
+    lfa = zeros([1])  # [deg] Local flow angle along the blade
+    v_a = zeros([1])  # [m/s] axial velocity along the blade
+    v_t = zeros([1])  # [m/s] tangential velocity along the blade
+    v_r = zeros([1])  # [m/s] radial velocity along the blade
+    lcp = zeros([1])  # Local power coefficient along the blade
+    lct = zeros([1])  # Local power coefficient along the blade
 
 
-class RotorLoadsVT(VariableTree):
+class RotorLoadsVT(object):
 
-    T = Float(units='N', desc='thrust')
-    Q = Float(units='N*m', desc='torque')
-    P = Float(units='W', desc='power')
+    T = 0.0  # [N] thrust
+    Q = 0.0  # [N*m] torque
+    P = 0.0  # [W] power
 
-    CT = Float(units='N', desc='thrust coefficient')
-    CQ = Float(units='N*m', desc='torque coefficient')
-    CP = Float(units='W', desc='power coefficient')
-
-
-class RotorLoadsArrayVT(VariableTree):
-
-    wsp = Array(units='m/s', desc='Wind speeds')
-    rpm = Array(units='rpm', desc='Rotor speed')
-    pitch = Array(units='deg', desc='Pitch angle')
-
-    T = Array([0.], units='N', desc='thrust')
-    Q = Array([0.], units='N*m', desc='torque')
-    P = Array([0.], units='W', desc='power')
-
-    CT = Array([0.], units=None, desc='thrust coefficient')
-    CQ = Array([0.], units=None, desc='torque coefficient')
-    CP = Array([0.], units=None, desc='power coefficient')
+    CT = 0.0  # [N] thrust coefficient
+    CQ = 0.0  # [N*m] torque coefficient
+    CP = 0.0  # [W] power coefficient
 
 
-class DistributedLoadsArrayVT(VariableTree):
+class RotorLoadsArrayVT(object):
 
-    loads_array = List()
+    wsp = zeros([1])  # [m/s] Wind speeds
+    rpm = zeros([1])  # [rpm] Rotor speed
+    pitch = zeros([1])  # [deg] Pitch angle
 
+    T = zeros([1])  # [N] thrust
+    Q = zeros([1])  # [N*m] torque
+    P = zeros([1])  # [W] power
 
-class BeamDisplacementsVT(VariableTree):
-
-    main_axis = Array()
-    rot_x = Array()
-    rot_y = Array()
-    rot_z = Array()
-
-
-class BeamDisplacementsArrayVT(VariableTree):
-
-    disps_array = List(desc='Array of blade displacements and rotations')
-    tip_pos = Array()
-    tip_rot = Array()
+    CT = zeros([1])  # thrust coefficient
+    CQ = zeros([1])  # torque coefficient
+    CP = zeros([1])  # power coefficient
 
 
-class HubLoadsVT(VariableTree):
+class DistributedLoadsArrayVT(object):
 
-    Fx = Float(units='N', desc='x-force in wind-aligned coordinate system')
-    Fy = Float(units='N', desc='y-force in wind-aligned coordinate system')
-    Fz = Float(units='N', desc='z-force in wind-aligned coordinate system')
-    Mx = Float(units='N*m', desc='x-moment in wind-aligned coordinate system')
-    My = Float(units='N*m', desc='y-moment in wind-aligned coordinate system')
-    Mz = Float(units='N*m', desc='z-moment in wind-aligned coordinate system')
+    loads_array = []
 
 
-class HubLoadsArrayVT(VariableTree):
+class BeamDisplacementsVT():
 
-    Fx = Array(units='N', desc='x-force in wind-aligned coordinate system')
-    Fy = Array(units='N', desc='y-force in wind-aligned coordinate system')
-    Fz = Array(units='N', desc='z-force in wind-aligned coordinate system')
-    Mx = Array(units='N*m', desc='x-moment in wind-aligned coordinate system')
-    My = Array(units='N*m', desc='y-moment in wind-aligned coordinate system')
-    Mz = Array(units='N*m', desc='z-moment in wind-aligned coordinate system')
+    main_axis = zeros([1])
+    rot_x = zeros([1])
+    rot_y = zeros([1])
+    rot_z = zeros([1])
 
 
-class RotorOperationalDataVT(VariableTree):
+class BeamDisplacementsArrayVT(object):
 
-    wsp = Array(units='m/s', desc='Wind speed')
-    pitch = Array(units='deg', desc='pitch angle')
-    rpm = Array(desc='rotational speed')
+    disps_array = []  # Array of blade displacements and rotations
+    tip_pos = zeros([1])
+    tip_rot = zeros([1])
+
+
+class HubLoadsVT(object):
+
+    Fx = 0.0  # [N] x-force in wind-aligned coordinate system
+    Fy = 0.0  # [N] y-force in wind-aligned coordinate system
+    Fz = 0.0  # [N] z-force in wind-aligned coordinate system
+    Mx = 0.0  # [N*m] x-moment in wind-aligned coordinate system
+    My = 0.0  # [N*m] y-moment in wind-aligned coordinate system
+    Mz = 0.0  # [N*m] z-moment in wind-aligned coordinate system
+
+
+class HubLoadsArrayVT(object):
+
+    Fx = zeros([1])  # [N] x-force in wind-aligned coordinate system
+    Fy = zeros([1])  # [N] y-force in wind-aligned coordinate system
+    Fz = zeros([1])  # [N] z-force in wind-aligned coordinate system
+    Mx = zeros([1])  # [N*m] x-moment in wind-aligned coordinate system
+    My = zeros([1])  # [N*m] y-moment in wind-aligned coordinate system
+    Mz = zeros([1])  # [N*m] z-moment in wind-aligned coordinate system
+
+
+class RotorOperationalDataVT(object):
+
+    wsp = zeros([1])    # [m/s] Wind speed
+    pitch = zeros([1])  # [deg] pitch angle
+    rpm = zeros([1])    # rotational speed
