@@ -1,25 +1,29 @@
 """"""
-
-
-from openmdao.main.api import Component, Container
-from openmdao.lib.datatypes.api import List
 from hawc2_inputdict import HAWC2InputDict, read_hawc2_st_file, \
-                              read_hawc2_stKfull_file,read_hawc2_pc_file, \
+                              read_hawc2_stKfull_file, read_hawc2_pc_file, \
                               read_hawc2_ae_file
-from hawc2_vartrees import *
+from hawc2_vartrees import HAWC2VarTrees, HAWC2Simulation, HAWC2Wind,\
+                           HAWC2TowerPotential2, HAWC2Mann, HAWC2Aero,\
+                           HAWC2AirfoilDataset, HAWC2AirfoilPolar,\
+                           HAWC2AeroDrag, HAWC2AeroDragElement, HAWC2MainBody,\
+                           HAWC2BeamStructure, HAWC2Type2DLL, HAWC2OutputVT,\
+                           HAWC2SBody
+from scipy.interpolate import pchip
+from numpy import array, loadtxt
 
 
 def stfile2beamvt(filename):
     """read HAWC2 st file and return list of BeamStructureVT's"""
 
-    from fusedwind.turbine.structure_vt import BeamStructureVT
+    from fusedwind.turbine.structure_vt import BeamStructureVT  # FIXME:
     sts = []
     stdic = read_hawc2_st_file(filename)
     for stset in stdic:
         st = BeamStructureVT()
         for k, w in stset.iteritems():
             fused_name = k
-            if k == 'K': fused_name = 'G'
+            if k == 'K':
+                fused_name = 'G'
             try:
                 setattr(st, fused_name, w)
             except:
@@ -27,11 +31,14 @@ def stfile2beamvt(filename):
         sts.append(st)
 
     return sts
-class HAWC2InputReader(Component):
 
-    htc_master_file = Str('hawc_master.htc')
-    htc = List(iotype='in')
-    vartrees = VarTree(HAWC2VarTrees(), iotype='out')
+
+class HAWC2InputReader(object):
+
+    def __init__(self):
+        self.htc_master_file = 'hawc_master.htc'
+        self.htc = []
+        self.vartrees = HAWC2VarTrees()
 
     def execute(self):
         self.dict = HAWC2InputDict()
@@ -65,32 +72,37 @@ class HAWC2InputReader(Component):
 
         # copy blade twist from c2_def to blade_ae vartree
         if hasattr(self.vartrees.main_bodies, 'blade1'):
-            from scipy.interpolate import pchip
             c12 = self.vartrees.main_bodies.blade1.c12axis
             tck = pchip(c12[:, 2], c12[:, 3])
             twist = tck(self.vartrees.blade_ae.s)
             self.vartrees.blade_ae.twist = twist
             self.vartrees.blade_ae.c12axis = c12.copy()
-            self.vartrees.blade_structure = self.vartrees.main_bodies.blade1.beam_structure
+            self.vartrees.blade_structure = \
+                self.vartrees.main_bodies.blade1.beam_structure
 
     def set_entry(self, vt, section, name, h2name=None, required=False):
 
-        if h2name == None:
+        if h2name is None:
             var = section.get_entry(name)
 
         else:
             var = section.get_entry(h2name)
 
         if var is None and required:
-            raise RuntimeError('Missing input variable %s in section %s' % (name, section.name))
+            raise RuntimeError('Missing input variable %s in section %s' %
+                               (name, section.name))
 
         elif var is not None:
-            try:
+            if isinstance(getattr(vt, name), list) and isinstance(var, str):
+                setattr(vt, name, [var])
+            else:
                 setattr(vt, name, var)
-            except:
-                setattr(vt, name, [var])  # Needed when the list has only
-                                              #  one entry and it is a str
-
+            #try:
+            #    setattr(vt, name, var)
+            #except:
+            #    print 'HERE'
+            #    # Needed when the list has only one entry and it is a str
+            #    setattr(vt, name, [var])
         return vt
 
     def add_simulation(self, section):
@@ -109,6 +121,7 @@ class HAWC2InputReader(Component):
         self.vartrees.sim = vt
 
     def add_wind(self, section):
+
         vt = HAWC2Wind()
         vt = self.set_entry(vt, section, 'density')
         vt = self.set_entry(vt, section, 'wsp', required=True)
@@ -124,8 +137,9 @@ class HAWC2InputReader(Component):
         vt = self.set_entry(vt, section, 'turb_format')
         pot = section.get_entry('tower_shadow_potential_2')
         if pot is not None:
-            vt.add('tower_potential', VarTree(HAWC2TowerPotential2()))
-            vt.tower_potential.tower_mbdy_link = pot.get_entry('tower_mbdy_link')
+            vt.add('tower_potential', HAWC2TowerPotential2())
+            vt.tower_potential.tower_mbdy_link =\
+                pot.get_entry('tower_mbdy_link')
             vt.tower_potential.nsec = pot.get_entry('nsec')
             vt.tower_potential.sections = pot.get_entry('radius')
 
@@ -149,7 +163,7 @@ class HAWC2InputReader(Component):
             vt.G_T = gust[4]
         if vt.turb_format == 1:
             mann = section.get_entry('mann')
-            vt.add('mann', VarTree(HAWC2Mann()))
+            vt.add('mann', HAWC2Mann())
 
             temp = mann.get_entry('create_turb_parameters')
             if temp is not None:
@@ -192,7 +206,7 @@ class HAWC2InputReader(Component):
             vt.hub_vec_mbdy_name = hub_vec[0]
             vt.hub_vec_coo = hub_vec[1]
         for b in range(vt.nblades):
-            link = [b +1, 'mbdy_c2_def', 'blade%i' % (b +1)]
+            link = [b + 1, 'mbdy_c2_def', 'blade%i' % (b + 1)]
             vt.links.append(link)
 
         self.vartrees.aero = vt
@@ -213,7 +227,7 @@ class HAWC2InputReader(Component):
 
         for dataset in data:
             pcset = HAWC2AirfoilDataset()
-            pcset.np =  len(dataset['polars'])
+            pcset.np = len(dataset['polars'])
             rthick = []
             for p in dataset['polars']:
                 polar = HAWC2AirfoilPolar()
@@ -254,19 +268,15 @@ class HAWC2InputReader(Component):
     def add_structure(self, section):
 
         for sec in section.entries:
-
             if sec.name == 'main_body':
-
                 b = self.add_main_body(sec)
-                self.vartrees.main_bodies.add(b.body_name, VarTree(b))
+                self.vartrees.main_bodies.add_main_body(b.body_name, b)
 
             elif sec.name == 'orientation':
-
-                o = self.add_orientations(sec)
+                self.add_orientations(sec)
 
             elif sec.name == 'constraint':
-
-                o = self.add_constraints(sec)
+                self.add_constraints(sec)
 
     def add_main_body(self, section):
 
@@ -281,7 +291,7 @@ class HAWC2InputReader(Component):
         b = self.set_entry(b, section, 'body_type', h2name='type')
         b = self.set_entry(b, section, 'nbodies')
         b = self.set_entry(b, section, 'node_distribution')
-        
+
         d_ani = section.get_entry('damping_aniso')
         if d_ani is not None:
             b.damping_aniso = d_ani
@@ -289,7 +299,7 @@ class HAWC2InputReader(Component):
         else:
             b = self.set_entry(b, section, 'damping_posdef')
 
-        b = self.set_entry(b, section, 'type')
+        #b = self.set_entry(b, section, 'type')
 
         cm = section.get_entry('concentrated_mass')
         if cm is not None:
@@ -298,6 +308,7 @@ class HAWC2InputReader(Component):
             b.concentrated_mass = cm
         timo = section.get_entry('timoschenko_input')
         st_type = timo.get_entry('FPM')
+
         if st_type is not None:
             stdic = read_hawc2_stKfull_file(timo.get_entry('filename'))
             b.st_input_type = st_type
@@ -311,7 +322,7 @@ class HAWC2InputReader(Component):
                 b.beam_structure.append(st)
         b.body_set = timo.get_entry('set')
         c2def = section.get_entry('c2_def')
-        b.c12axis = np.array(c2def.get_entry('sec'))[:, 1:5]
+        b.c12axis = array(c2def.get_entry('sec'))[:, 1:5]
         return b
 
     def add_orientations(self, section):
@@ -323,6 +334,7 @@ class HAWC2InputReader(Component):
                     # try new input name
                     body_name = sec.get_entry('mbdy')
                 b = self.vartrees.main_bodies.get_main_body(body_name)
+                b.orientations = []
                 o = b.add_orientation(sec.name)
                 o = self.set_entry(o, sec, 'inipos')
                 orien = sec.get_entry('body_eulerang')
@@ -332,10 +344,6 @@ class HAWC2InputReader(Component):
                     o.body_eulerang = orien
 
             elif sec.name == 'relative':
-                # body1 and body2 need to be lists to deal with either
-                # ["string" "string"] or ["string" "int"] used in
-                # HAWC2 constraints
-
                 body1 = sec.get_entry('body1')
                 body2 = sec.get_entry('body2')
                 if body1[0] is None:
@@ -351,7 +359,8 @@ class HAWC2InputReader(Component):
                     if isinstance(orien[0], float):
                         orien = [orien]
                     o.body2_eulerang = orien
-                o = self.set_entry(o, sec, 'mbdy2_ini_rotvec_d1', h2name='body2_ini_rotvec_d1')
+                o = self.set_entry(o, sec, 'mbdy2_ini_rotvec_d1',
+                                   h2name='body2_ini_rotvec_d1')
                 o = self.set_entry(o, sec, 'mbdy2_ini_rotvec_d1')
                 # these inputs aren't used in HAWC2 as far as I know...
                 o = self.set_entry(o, sec, 'initial_speed')
@@ -362,7 +371,7 @@ class HAWC2InputReader(Component):
         for sec in section.entries:
             if sec.name in ['fix0', 'fix2', 'fix3']:
                 body_name = sec.get_entry('body')
-                if body_name == None:
+                if body_name is None:
                     # try new input name
                     body_name = sec.get_entry('mbdy')
                 b = self.vartrees.main_bodies.get_main_body(body_name)
@@ -417,7 +426,6 @@ class HAWC2InputReader(Component):
                 else:
                     c = self.set_entry(c, sec, 'disable_at')
 
-
     def add_dlls(self, section):
 
         for sec in section.entries:
@@ -448,14 +456,15 @@ class HAWC2InputReader(Component):
             constants = sec.get_entry('output').entries
             output.set_outputs(constants)
         except:
-            self._logger.info('no outputs defined for dll %s' % dll.name)
+            # self._logger.info('no outputs defined for dll %s' % dll.name) # FIXME:
+            pass
         try:
             actions = dll.set_actions(dll.name)
             constants = sec.get_entry('actions').entries
             actions.set_outputs(constants)
         except:
-            self._logger.info('no actions defined for dll %s' % dll.name)
-
+            # self._logger.info('no actions defined for dll %s' % dll.name) # FIXME:
+            pass
         return dll
 
     def add_output(self, section):
@@ -476,18 +485,14 @@ class HAWC2InputReader(Component):
         dll.set_init('risoe_controller')
         self.vartrees.dlls.add_dll('risoe_controller', dll)
         for sec in section.entries:
-
             if sec.name == 'ground_fixed_substructure':
-
                 self.vartrees.h2s.ground_fixed = self.add_hawc2s_body(sec)
 
             elif sec.name == 'rotating_axissym_substructure':
-
                 self.vartrees.h2s.rotating_axissym =\
                     self.add_hawc2s_body(sec)
 
             elif sec.name == 'rotating_threebladed_substructure':
-
                 self.vartrees.h2s.rotating_threebladed =\
                     self.add_hawc2s_body(sec)
                 try:
@@ -499,33 +504,33 @@ class HAWC2InputReader(Component):
                     pass
 
             elif sec.name == 'operational_data':
-
                 self.add_operational_data(sec)
 
             elif sec.name == 'controller_tuning':
-
                 self.add_controller_tuning(sec)
 
             elif sec.name == 'controller':
-
                 self.add_controller(sec)
+
             elif sec.name == 'print_full_precision':
                 self.vartrees.h2s.commands.append('print_full_precision')
+
             elif sec.name == 'compute_optimal_pitch_angle':
                 self.vartrees.h2s.commands.append('compute_optimal_pitch_angle')
+
             elif sec.name == 'degrees_of_freedom':
                 self.vartrees.h2s.commands.append(
-                    'degrees_of_freedom %s %s %s %s %s '%(
-                    sec.val[0],sec.val[1],sec.val[2],sec.val[3],sec.val[4]))
+                    'degrees_of_freedom' + 5*' %s' % (
+                    sec.val[0], sec.val[1], sec.val[2], sec.val[3], sec.val[4]))
 
             elif sec.name == 'steady_state_convergence_limits':
                 self.vartrees.h2s.commands.append(
-                    'steady_state_convergence_limits %g %g %g %g %g %g %g %g %g'%(
-                    sec.val[0], sec.val[1], sec.val[2], sec.val[3], sec.val[4],
-                    sec.val[5], sec.val[6], sec.val[7], sec.val[8]))
+                    'steady_state_convergence_limits' + 9*' %g'
+                    % (sec.val[0], sec.val[1], sec.val[2], sec.val[3],
+                       sec.val[4], sec.val[5], sec.val[6], sec.val[7],
+                       sec.val[8]))
 
             elif sec.name == 'compute_steady_states':
-
                 self.vartrees.h2s.commands.append('compute_steady_states')
                 self.vartrees.h2s.options.bladedeform = sec.val[0]
                 self.vartrees.h2s.options.tipcorrect = sec.val[1]
@@ -533,7 +538,6 @@ class HAWC2InputReader(Component):
                 self.vartrees.h2s.options.gradients = sec.val[3]
 
             elif sec.name == 'compute_steadystate':
-
                 self.vartrees.h2s.commands.append('compute_steadystate')
                 self.vartrees.h2s.options.bladedeform = sec.val[0]
                 self.vartrees.h2s.options.tipcorrect = sec.val[1]
@@ -541,7 +545,6 @@ class HAWC2InputReader(Component):
                 self.vartrees.h2s.options.gradients = sec.val[3]
 
             elif sec.name == 'compute_stability_analysis':
-
                 self.vartrees.h2s.commands.append('compute_stability_analysis')
                 self.vartrees.h2s.options.matrixwriteout = sec.val[0]
                 self.vartrees.h2s.options.eigenvaluewriteout = sec.val[1]
@@ -553,7 +556,6 @@ class HAWC2InputReader(Component):
                 self.vartrees.h2s.options.frequencysorting = sec.val[7]
 
             elif sec.name == 'compute_aeroservoelastic':
-
                 self.vartrees.h2s.commands.append('compute_aeroservoelastic')
                 self.vartrees.h2s.options.matrixwriteout = sec.val[0]
                 self.vartrees.h2s.options.eigenvaluewriteout = sec.val[1]
@@ -565,7 +567,6 @@ class HAWC2InputReader(Component):
                 self.vartrees.h2s.options.frequencysorting = sec.val[7]
 
             elif sec.name == 'basic_dtu_we_controller':
-
                 self.vartrees.h2s.commands.append('basic_dtu_we_controller')
                 self.vartrees.dlls.risoe_controller.dll_init.pgTorque =\
                     sec.val[0]
@@ -583,60 +584,58 @@ class HAWC2InputReader(Component):
                     sec.val[6]
                 self.vartrees.dlls.risoe_controller.dll_init.generatorFreq =\
                     sec.val[7]
-                self.vartrees.dlls.risoe_controller.dll_init.generatorDamping =\
-                    sec.val[8]
+                self.vartrees.dlls.risoe_controller.\
+                    dll_init.generatorDamping = sec.val[8]
                 self.vartrees.dlls.risoe_controller.dll_init.ffFreq =\
                     sec.val[9]
-                if sec.val[10] == 1:
-                    self.vartrees.dlls.risoe_controller.dll_init.generatorSwitch = 1
-                elif sec.val[10] == 0:
-                    self.vartrees.dlls.risoe_controller.dll_init.generatorSwitch = 2
 
-                if len(sec.val) > 10:
-                    self.vartrees.dlls.risoe_controller.dll_init.Kp2 = sec.val[11]
-                    self.vartrees.dlls.risoe_controller.dll_init.Ko1 = sec.val[12]
-                    self.vartrees.dlls.risoe_controller.dll_init.Ko2 = sec.val[13]
+                if sec.val[10] == 1:
+                    self.vartrees.dlls.risoe_controller.\
+                        dll_init.generatorSwitch = 1
+
+                elif sec.val[10] == 0:
+                    self.vartrees.dlls.risoe_controller.\
+                        dll_init.generatorSwitch = 2
+
+                if len(sec.val) > 11:
+                    self.vartrees.dlls.risoe_controller.dll_init.Kp2 =\
+                        sec.val[11]
+                    self.vartrees.dlls.risoe_controller.dll_init.Ko1 =\
+                        sec.val[12]
+                    self.vartrees.dlls.risoe_controller.dll_init.Ko2 =\
+                        sec.val[13]
 
             elif sec.name == 'compute_controller_input':
-
                 self.vartrees.h2s.commands.append('compute_controller_input')
 
             elif sec.name == 'save_beam_data':
-
                 self.vartrees.h2s.commands.append('save_beam_data')
 
             elif sec.name == 'save_blade_geometry':
-
                 self.vartrees.h2s.commands.append('save_blade_geometry')
 
             elif sec.name == 'save_aero_point_data':
-
                 self.vartrees.h2s.commands.append('save_aero_point_data')
 
             elif sec.name == 'save_profile_coeffs':
-
                 self.vartrees.h2s.commands.append('save_profile_coeffs')
 
             elif sec.name == 'save_power':
-
                 self.vartrees.h2s.commands.append('save_power')
 
             elif sec.name == 'save_induction':
-
                 self.vartrees.h2s.commands.append('save_induction')
 
             elif sec.name == 'save_ol_matrices':
-
                 self.vartrees.h2s.commands.append('save_ol_matrices')
 
             elif sec.name == 'save_cl_matrices_all':
-
                 self.vartrees.h2s.commands.append('save_cl_matrices_all')
                 self.vartrees.h2s.options.vloc_out = sec.val == 'vloc_out'
 
             elif sec.name == 'compute_structural_modal_analysis':
-
-                self.vartrees.h2s.commands.append('compute_structural_modal_analysis')
+                self.vartrees.h2s.commands.append(
+                    'compute_structural_modal_analysis')
                 self.vartrees.h2s.options.blade_only =\
                     sec.val[0] == 'bladeonly'
                 self.vartrees.h2s.options.number_of_modes = sec.val[1]
@@ -647,13 +646,10 @@ class HAWC2InputReader(Component):
 
     def add_hawc2s_body(self, section):
 
-
         b = HAWC2SBody()
         b = self.set_entry(b, section, 'main_body')
         b = self.set_entry(b, section, 'log_decrements')
-
         return b
-
 
     def add_operational_data(self, section):
 
@@ -688,25 +684,26 @@ class HAWC2InputReader(Component):
         self.vartrees.h2s.options = \
             self.set_entry(self.vartrees.h2s.options,
                            section, 'include_torsiondeform')
-            
+
         self.vartrees.h2s.options = \
             self.set_entry(self.vartrees.h2s.options,
                            section, 'remove_torque_limits')
-                           
+
     def read_operational_data_file(self):
 
         try:
             fid = open(self.vartrees.h2s.operational_data_filename, 'r')
             fid.readline()
-            data = np.loadtxt(fid)
+            data = loadtxt(fid)
             fid.close()
 
             self.vartrees.h2s.wsp_curve = data[:, 0]
             self.vartrees.h2s.pitch_curve = data[:, 1]
             self.vartrees.h2s.rpm_curve = data[:, 2]
         except:
-            self._logger.warning('failed reading operational data file %s' %
-                                 self.vartrees.h2s.operational_data_filename)
+            # self._logger.warning('failed reading operational data file %s' % # FIXME:
+            #                      self.vartrees.h2s.operational_data_filename)
+            pass
 
     def add_controller_tuning(self, section):
 
@@ -719,7 +716,7 @@ class HAWC2InputReader(Component):
 
         self.vartrees.dlls.risoe_controller.dll_init = \
             self.set_entry(self.vartrees.dlls.risoe_controller.dll_init,
-                           section, 'gainScheduling' , h2name='gain_scheduling')
+                           section, 'gainScheduling', h2name='gain_scheduling')
 
         self.vartrees.dlls.risoe_controller.dll_init = \
             self.set_entry(self.vartrees.dlls.risoe_controller.dll_init,
@@ -744,4 +741,12 @@ class HAWC2InputReader(Component):
         i = section.get_entry('output')
         o.set_outputs(i.entries)
         self.vartrees.h2s.ch_list_out = o
+
+if __name__ == '__main__':
+
+    a = HAWC2InputReader()
+    a.htc_master_file = '.\DTU_10MW_RWT_hs2.htc'
+    a.execute()
+    #print a.vartrees.main_bodies.tower.orientations
+    #print a.vartrees.main_bodies.shaft.orientations
 
