@@ -4,7 +4,10 @@ import numpy as np
 
 
 def _convert_val(val):
-    """ convert a string value read from a file into either int, float or string """
+    """
+    convert a string value read from a file into either int, float or
+    string
+    """
 
     try:
         return int(val)
@@ -30,9 +33,12 @@ class Entry(object):
         if isinstance(self.val, str):
             return '%s%s' % (tab * ' ', self.name + ' ' + self.val + ' ;\n')
         try:
-            return '%s%s' % (tab * ' ', self.name + ' '+ ' '.join(map(str, self.val)) + ' ;\n')
+            return '%s%s' % (tab * ' ', self.name + ' ' +
+                             ' '.join(map(str, self.val)) + ' ;\n')
         except:
-            return '%s%s' % (tab * ' ', self.name + ' ' + str(self.val) + ' ;\n')
+            return '%s%s' % (tab * ' ', self.name + ' ' +
+                             str(self.val) + ' ;\n')
+
 
 class Section(object):
     """Class for list of Entry objects in a HAWC2 htc file"""
@@ -120,7 +126,7 @@ class HAWC2InputDict(object):
         self.inp = tmp
 
     def _read_section(self, section):
-    
+
         while self.pos < self.nl:
             line = self._next()
             comment = line[line.find(';')+1:].strip()
@@ -149,7 +155,7 @@ class HAWC2InputDict(object):
                     self.body_order.append(param[1])
 
                 if len(vals) == 1:
-                    section.entries.append(Entry(param[0],vals[0], comment))
+                    section.entries.append(Entry(param[0], vals[0], comment))
                 else:
                     section.entries.append(Entry(param[0], vals, comment))
 
@@ -160,7 +166,7 @@ class HAWC2InputDict(object):
         try:
             line = self.lines[self.pos]
             self.pos += 1
-            return line 
+            return line
         except:
             return False
 
@@ -176,13 +182,13 @@ def read_hawc2_st_file(filename):
     Sub-classes can overwrite this function to change the reader's behaviour.
     """
     fid = open(filename, 'r')
-    st_sets = [] 
+    st_sets = []
     line = fid.readline()
     while line:
         line = fid.readline()
         if line.find('$') != -1:
             ni = int(line.split()[1])
-            st_data = np.zeros((ni, 19)) 
+            st_data = np.zeros((ni, 19))
             for i in range(ni):
                 tmp = fid.readline().split()
                 st_data[i, :] = [float(tmp[j]) for j in range(19)]
@@ -211,6 +217,7 @@ def read_hawc2_st_file(filename):
     fid.close()
     return st_sets
 
+
 def read_hawc2_stKfull_file(filename):
     """
     Reader for a HAWC2 beam structure file. Each sectional input is defined
@@ -224,15 +231,16 @@ def read_hawc2_stKfull_file(filename):
                                   K_4,4[24] K_4,5[25] K_4,6[26]
                                             K_5,5[27] K_5,6[28]
                                                       K_6,6[29]
-    
-    First 5 columns are like a standard HAWC2_st input file. The other columns    
-    define the upper triangular part of the fully populated constitutive 
-    matrix for each section of the blade.    
-    
+
+    First 5 columns are like a standard HAWC2_st input file. The other columns
+    define the upper triangular part of the fully populated constitutive
+    matrix for each section of the blade.
+
     Sub-classes can overwrite this function to change the reader's behaviour.
     """
+
     fid = open(filename, 'r')
-    st_sets = [] 
+    st_sets = []
     line = fid.readline()
     while line:
         line = fid.readline()
@@ -252,7 +260,7 @@ def read_hawc2_stKfull_file(filename):
             st['ri_y'] = st_data[:, 5]
             st['pitch'] = st_data[:, 6]
             st['x_e'] = st_data[:, 7]
-            st['y_e'] = st_data[:, 8]            
+            st['y_e'] = st_data[:, 8]
             st['K_11'] = st_data[:, 9]
             st['K_12'] = st_data[:, 10]
             st['K_13'] = st_data[:, 11]
@@ -278,6 +286,7 @@ def read_hawc2_stKfull_file(filename):
     fid.close()
     return st_sets
 
+
 def read_hawc2_pc_file(filename):
     """Read a pc airfoil data file into a dictionary"""
 
@@ -289,7 +298,7 @@ def read_hawc2_pc_file(filename):
     for i in range(nset):
         pcset = {}
         pcset['polars'] = []
-        npo =  int(fid.readline().split()[0])
+        npo = int(fid.readline().split()[0])
         rawdata = [row.strip().split('\t') for row in fid]
         rthick = []
         ii = 0
@@ -300,7 +309,7 @@ def read_hawc2_pc_file(filename):
             polar['np'] = ni
             polar['rthick'] = float(line[2])
             polar['desc'] = " ".join(line[3:])
-            data = np.zeros((ni,4))
+            data = np.zeros((ni, 4))
             ii += 1
             for i in range(ni):
                 dline = rawdata[ii][0]
@@ -317,6 +326,7 @@ def read_hawc2_pc_file(filename):
 
     fid.close()
     return [desc, sets]
+
 
 def read_hawc2_ae_file(filename):
     """read blade chord and relative thickness from an ae file"""
@@ -338,9 +348,3 @@ def read_hawc2_ae_file(filename):
     fid.close()
 
     return blade_ae
-
-if __name__ == '__main__':
-
-    r = HAWC2InputReader()
-    r.read('hawc2_master.htc')
-
