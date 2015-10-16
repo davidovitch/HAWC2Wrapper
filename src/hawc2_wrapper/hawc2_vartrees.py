@@ -95,6 +95,7 @@ class HAWC2BeamStructure(object):
 class HAWC2OrientationBase(object):
 
     def __init__(self):
+        self.type = 'base'
         self.body = ''  # mbdy name
         self.inipos = zeros(3)  # Initial position in global coordinates
         self.body_eulerang = []  # sequence of euler angle rotations, x->y->z
@@ -103,10 +104,11 @@ class HAWC2OrientationBase(object):
 class HAWC2OrientationRelative(object):
 
     def __init__(self):
+        self.type = 'relative'
         self.body1 = []  # Main body name to which the body is attached
         self.body2 = []  # Main body name to which the body is attached
         self.body2_eulerang = []  # sequence of euler angle rotations, x->y->z
-        # Initial rotation velocity of main body and all subsequent attached 
+        # Initial rotation velocity of main body and all subsequent attached
         # bodies (vx, vy, vz, |v|)
         self.mbdy2_ini_rotvec_d1 = zeros(4)
 
@@ -317,6 +319,8 @@ class HAWC2Aero(object):
         self.ae_sets = [1, 1, 1]
         self.ae_filename = ''
         self.pc_filename = ''
+        self.aero_distribution_file = ''
+        self.aero_distribution_set = 1
 
 
 class HAWC2Mann(object):
@@ -369,7 +373,20 @@ class HAWC2Wind(object):
         self.G_phi0 = 0.0
         self.G_t0 = 0.0
         self.G_T = 0.0
-        self.mann = HAWC2Mann()
+
+    def add_shadow(self, shadow_name):
+
+        if not hasattr(self, shadow_name):
+            setattr(self, shadow_name, HAWC2TowerPotential2())
+        else:
+            print 'shadow: %s already added' % shadow_name
+
+    def add_turbulence(self, turbulence_name):
+
+        if not hasattr(self, turbulence_name):
+            setattr(self, turbulence_name, HAWC2Mann())
+        else:
+            print 'turbulence: %s already added' % turbulence_name
 
 
 class HAWC2TowerPotential2(object):
@@ -393,6 +410,7 @@ class HAWC2AeroDragElement(object):
         self.dist = ''
         self.nsec = 1
         self.sections = []
+        self.calculation_points = 2
 
 
 class HAWC2OutputListVT(object):
@@ -414,6 +432,7 @@ class HAWC2OutputVT(HAWC2OutputListVT):
 
     def __init__(self):
         super(HAWC2OutputVT, self).__init__()
+        self.filename = ''
         self.time_start = 0.
         self.time_stop = 0.0
         self.out_format = 'hawc_ascii'
@@ -422,10 +441,14 @@ class HAWC2OutputVT(HAWC2OutputListVT):
 
 class HAWC2Type2DLLinit(object):
 
+    def __init__(self):
+        self.init_dic = {}
+
     def set_constants(self, constants):
 
         for i, c in enumerate(constants):
-            self.add('constant%i' % (i + 1), c.val[1])
+            setattr(self, 'constant%i' % (i + 1), c.val[1])
+            self.init_dic[i+1] = ['constant%i' % (i + 1), 1.]
 
 
 def _makelist(val):
@@ -436,13 +459,32 @@ def _makelist(val):
         return [val]
 
 
-class HAWC2Type2DLLoutput(object):
+class HAWC2Type2DLLIO(object):
 
+    def __init__(self):
+        self.out_dic = {}
+        self.action_dic = {}
+        
     def set_outputs(self, entries):
-
         for i, c in enumerate(entries):
-            self.add('out_%i' % (i + 1), zeros([1]))
+            setattr(self, 'out_%i' % (i + 1), c)
+            self.out_dic[i+1] = ['out_%i' % (i + 1), 1.]
 
+    def set_actions(self, entries):
+        for i, c in enumerate(entries):
+            setattr(self, 'action_%i' % (i + 1), c)
+            self.action_dic[i+1] = ['action_%i' % (i + 1), 1.]
+
+    def read_io(self, io):
+        """
+        sets the parameters slot with the VariableTree corresponding to the
+        name string defined in the type2_dll interface
+        """
+        io_list = []
+        for i, c in enumerate(io):
+            print c
+            io_list.append(len(c)*' %s'%tuple(c))
+        return io_list
 
 class HAWC2Type2DLL(object):
 
@@ -455,48 +497,25 @@ class HAWC2Type2DLL(object):
         self.arraysizes_init = []    # size of array in the initialization call
         self.arraysizes_update = []  # size of array in the update call
         self.deltat = 0.0            # Time between dll calls.
-        self.dll_init = HAWC2Type2DLLinit()   # Slot for DLL specific
-        self.output = HAWC2Type2DLLoutput()   # Outputs for DLL specific
-        self.actions = HAWC2Type2DLLoutput()  # Actions for DLL specific
+        #self.dll_init = HAWC2Type2DLLinit()   # Slot for DLL specific
+        self.output = HAWC2Type2DLLIO()   # Outputs for DLL specific
+        self.actions = HAWC2Type2DLLIO()  # Actions for DLL specific
+        self.init_dic = {}
 
     def set_init(self, name):
         """
         sets the parameters slot with the VariableTree corresponding to the
         name string defined in the type2_dll interface
         """
-        try:
-            klass = type2_dll_dict[name]
-            self.dll_init = klass()
-        except:
-            self._logger.warning('No init vartree available for %s, falling \
-                                back on default HAWC2Type2DLLinit' % self.name)
+        klass = type2_dll_dict[name]
+        self.dll_init = klass()
+
         return self.dll_init
 
-    def set_output(self, name):
-        """
-        sets the parameters slot with the VariableTree corresponding to the
-        name string defined in the type2_dll interface
-        """
-        try:
-            klass = type2_dll_out_dict[name]  # TODO:
-            self.output = klass()
-        except:
-            self._logger.warning('No output vartree available for %s, falling \
-                            back on default HAWC2Type2DLLoutput' % self.name)
-        return self.output
-
-    def set_actions(self, name):
-        """
-        sets the parameters slot with the VariableTree corresponding to the
-        name string defined in the type2_dll interface
-        """
-        try:
-            klass = type2_dll_action_dict[name]  # TODO:
-            self.actions = klass()
-        except:
-            self._logger.warning('No actions vartree available for %s, falling\
-                            back on default HAWC2Type2DLLoutput' % self.name)
-        return self.actions
+    def set_constants(self, constants):
+        for i, c in enumerate(constants):
+            setattr(self, 'constant%i' % (i + 1), c.val[1])
+            self.init_dic[i+1] = ['constant%i' % (i + 1), 1.]
 
 
 class HAWC2Type2DLLList(object):
@@ -515,7 +534,7 @@ class DTUBasicControllerVT(HAWC2Type2DLLinit):
     Variable tree for DTU Basic Controller inputs
     """
     def __init__(self):
-        super(HAWC2Type2DLLinit, self).__init__()
+        super(DTUBasicControllerVT, self).__init__()
         self.Vin = 4.   # [m/s]
         self.Vout = 25.  # [m/s]
         self.nV = 22
@@ -553,6 +572,7 @@ class DTUBasicControllerVT(HAWC2Type2DLLinit):
         self.cutin_t0 = 0.1
         self.stop_t0 = 860.
         self.TorqCutOff = 5.
+        self.stop_type = 1
         self.PitchDelay1 = 1.
         self.PitchVel1 = 1.5
         self.PitchDelay2 = 1.
@@ -573,48 +593,43 @@ class DTUBasicControllerVT(HAWC2Type2DLLinit):
         self.Ko1 = 1.0  # Additional GS param. invkk1_speed
         self.Ko2 = 0.0  # Additional GS param. invkk2_speed
 
-    def set_constants(self, constants):
+        self.init_dic = {1: ['ratedPower', 1.e3], 2: ['minRPM', 60./(2.*pi)],
+                         3: ['maxRPM', 60./(2.*pi)], 4: ['maxTorque', 1.],
+                         5: ['minPitch', 1.], 6: ['maxPitch', 1.],
+                         7: ['maxPitchSpeed', 1.], 8: ['generatorFreq', 1.],
+                         9: ['generatorDamping', 1.], 10: ['ffFreq', 1.],
+                         11: ['Qg', 1.], 12: ['pgTorque', 1.],
+                         13: ['igTorque', 1.], 14: ['dgTorque', 1.],
+                         15: ['generatorSwitch', 1.], 16: ['pgPitch', 1.],
+                         17: ['igPitch', 1.], 18: ['dgPitch', 1.],
+                         19: ['prPowerGain', 1.], 20: ['intPowerGain', 1.],
+                         21: ['KK1', 1.], 22: ['KK2', 1.],
+                         23: ['nlGainSpeed', 1.], 24: ['cutin_t0', 1.],
+                         25: ['softDelay', 1.], 26: ['stop_t0', 1.],
+                         27: ['TorqCutOff', 1.], 28: ['stop_type', 1.],
+                         29: ['PitchDelay1', 1.], 30: ['PitchVel1', 1.],
+                         31: ['PitchDelay2', 1.], 32: ['PitchVel2', 1.],
+                         45: ['overspeed_limit', 1.], 50: ['Kp2', 1.],
+                         51: ['Ko1', 1.], 52: ['Ko2', 1.]}
 
+    def read_constants(self, constants):
         for i, c in enumerate(constants):
-            if   c.val[0] ==  1: self.ratedPower = c.val[1] * 1.e3
-            elif c.val[0] ==  2: self.minRPM = c.val[1] * 60./(2.*pi)
-            elif c.val[0] ==  3: self.maxRPM = c.val[1] * 60./(2.*pi)
-            elif c.val[0] ==  4: self.maxTorque = c.val[1]
-            elif c.val[0] ==  5: self.minPitch = c.val[1]
-            elif c.val[0] ==  6: self.maxPitch = c.val[1]
-            elif c.val[0] ==  7: self.maxPitchSpeed = c.val[1]
-            elif c.val[0] ==  8: self.generatorFreq = c.val[1]
-            elif c.val[0] ==  9: self.generatorDamping = c.val[1]
-            elif c.val[0] == 10: self.ffFreq = c.val[1]
-            elif c.val[0] == 11: self.Qg = c.val[1]
-            elif c.val[0] == 12: self.pgTorque = c.val[1]
-            elif c.val[0] == 13: self.igTorque = c.val[1]
-            elif c.val[0] == 14: self.dgTorque = c.val[1]
-            elif c.val[0] == 15: self.generatorSwitch = c.val[1]
-            elif c.val[0] == 16: self.pgPitch  = c.val[1]
-            elif c.val[0] == 17: self.igPitch  = c.val[1]
-            elif c.val[0] == 18: self.dgPitch  = c.val[1]
-            elif c.val[0] == 19: self.prPowerGain = c.val[1]
-            elif c.val[0] == 20: self.intPowerGain = c.val[1]
-            elif c.val[0] == 21: self.KK1 = c.val[1]
-            elif c.val[0] == 22: self.KK2 = c.val[1]
-            elif c.val[0] == 23: self.nlGainSpeed = c.val[1]
-            elif c.val[0] == 24: self.cutin_t0 = c.val[1]
-            elif c.val[0] == 25: self.softDelay = c.val[1]
-            elif c.val[0] == 26: self.stop_t0 = c.val[1]
-            elif c.val[0] == 27: self.TorqCutOff = c.val[1]
-            elif c.val[0] == 29: self.PitchDelay1= c.val[1]
-            elif c.val[0] == 30: self.PitchVel1  = c.val[1]
-            elif c.val[0] == 31: self.PitchDelay2= c.val[1]
-            elif c.val[0] == 32: self.PitchVel2  = c.val[1]
-            elif c.val[0] == 39: self.overspeed_limit = c.val[1]
+            if c.val[0] in self.init_dic.keys():
+                var_name = self.init_dic[c.val[0]][0]
+                var_multiplier = self.init_dic[c.val[0]][1]
+                setattr(self, var_name, c.val[1] * var_multiplier)
 
             # pick up the rest of the controller constants in generic variables
             else:
-                self.add('constant%i' % (i + 1), c.val[1])
+                setattr(self, 'constant%i' % (i + 1), c.val[1])
+                self.init_dic[i+1] = ['constant%i' % (i + 1), 1.]
 
 
-type2_dll_dict = {'risoe_controller': DTUBasicControllerVT}
+type2_dll_dict = {'risoe_controller': DTUBasicControllerVT,
+                  'generator_servo': HAWC2Type2DLLinit,
+                  'mech_brake': HAWC2Type2DLLinit,
+                  'servo_with_limits': HAWC2Type2DLLinit,
+                  'disttowtip':HAWC2Type2DLLinit}
 
 
 class HAWC2SCommandsOpt(object):
@@ -694,5 +709,6 @@ class HAWC2VarTrees(object):
         """
         self.body_order = []
         self.main_bodies = HAWC2MainBodyList()
+        self.dlls_order = []
         self.dlls = HAWC2Type2DLLList()
         self.h2s = HAWC2SVar()

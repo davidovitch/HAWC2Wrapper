@@ -1,7 +1,6 @@
 import os
 import numpy as np
-from vartrees import *
-from hawc2_vartrees import *
+from hawc2_vartrees import HAWC2VarTrees
 
 
 def _get_fmt(val):
@@ -12,7 +11,7 @@ def _get_fmt(val):
         elif isinstance(val, int):
             return '%i'
         elif isinstance(val, float):
-            return '%.20f'
+            return '%24.15f'
 
     if isinstance(val, list):
         return ' '.join([_get_fmt1(v) for v in val])
@@ -21,6 +20,7 @@ def _get_fmt(val):
 
 
 def write_pcfile(path, pc):
+    """write the blade airfoils"""
 
     fid = open(path, 'w')
     fid.write('%i %s\n' % (pc.nset, pc.desc))
@@ -32,8 +32,8 @@ def write_pcfile(path, pc):
             fid.write('%i %i %f %s\n' %
                       (j + 1, polar.aoa.shape[0], polar.rthick, polar.desc))
             for k in range(polar.aoa.shape[0]):
-                fid.write('%.20e  %.20e  %.20e  %.20e \n' %
-                          (polar.aoa[k], polar.cl[k], polar.cd[k], polar.cm[k]))
+                fid.write((4*'%24.15e '+'\n') % (polar.aoa[k], polar.cl[k],
+                                                 polar.cd[k], polar.cm[k]))
     fid.close()
 
 
@@ -167,7 +167,7 @@ class HAWC2InputWriter(object):
         self.Flag = False
         self.force_execute = True
 
-        self.master = []
+        self.htc_master = []
         self.structure = []
         self.aerodrag = []
         self.controlinp = []
@@ -183,20 +183,15 @@ class HAWC2InputWriter(object):
         # print 'writing case id %s' % self.case_id
         fid = open(self.case_id + '.htc', 'w')
 
-        for i, line in enumerate(self.master):
+        for i, line in enumerate(self.htc_master):
                 line = line.rstrip()+'\n'
-                self.master[i] = line
+                self.htc_master[i] = line
                 fid.write(line)
         fid.close()
 
-        # too lazy to change it
-        self.htc_master = self.master  # FIXME:
-
     def write_all(self):
 
-        self.master = []
-        self.structure = []
-        self.aerodrag = []
+        self.htc_master = []
         self.controlinp = []
         self.sensors = []
 
@@ -207,26 +202,15 @@ class HAWC2InputWriter(object):
         self.write_aerodrag()
         self.write_structure_res()
         self.update_c12axis()
-        self.write_main_bodies()
-        self.write_orientations()
-        self.write_constraints()
-        self.structure.insert(0, 'begin new_htc_structure;')
-        self.structure.append('end new_htc_structure;')
-        self.write_control_dll()
+        self.write_structure()
+        self.write_dlls()
+        self.write_output()
 
-        if self.from_file:
-            self.write_output_fromfile()
-        else:
-            self.write_output()
-
-        self.master.extend(self.aerodrag)
-        self.master.extend(self.structure)
-        self.master.extend(self.controlinp)
-        self.master.extend(self.sensors)
+        self.htc_master.extend(self.structure)
+        self.htc_master.extend(self.controlinp)
+        self.htc_master.extend(self.sensors)
 
     def execute(self):
-
-        # self._logger.info('writing HAWC2 input files to disk ...') # FIXME:
 
         if not os.path.exists(self.data_directory):
             os.mkdir(self.data_directory)
@@ -372,158 +356,180 @@ class HAWC2InputWriter(object):
                              DOF=np.array([0, 0, 0, 0, 0, -1]))
 
     def write_simulation(self):
+        """ write simulation block """
 
         sim = []
-        sim.append('begin simulation;')
-        sim.append('  time_stop    %s;' % self.vartrees.sim.time_stop)
-        sim.append('  solvertype   %i;' %
+        sim.append('begin simulation')
+        sim.append('time_stop    %s' % self.vartrees.sim.time_stop)
+        sim.append('solvertype   %i' %
                    self.vartrees.sim.solvertype)
-        sim.append('  convergence_limits %3.6f %3.6f %3.6f;' %
+        sim.append('convergence_limits %9.2e %9.2e %9.2e' %
                    tuple(self.vartrees.sim.convergence_limits))
-        sim.append('  on_no_convergence continue;')
-        sim.append('  max_iterations %i;' % self.vartrees.sim.max_iterations)
-        sim.append('  logfile %s;' %
+        sim.append('on_no_convergence continue')
+        sim.append('max_iterations %i' % self.vartrees.sim.max_iterations)
+        sim.append('logfile %s' %
                    (os.path.join(self.log_directory, self.case_id + '.log')))
-        sim.append('  begin newmark;')
-        sim.append('    deltat    %1.3f;' % self.vartrees.sim.newmark_deltat)
-        sim.append('  end newmark;')
-        sim.append('end simulation;')
-
-        self.master.extend(sim)
+        sim.append('begin newmark')
+        sim.append('  deltat    %1.3f' % self.vartrees.sim.newmark_deltat)
+        sim.append('end newmark')
+        sim.append('end simulation')
+        # Adding indent and semicolons
+        sim[0] += ';'
+        sim[-1] += ';'
+        for iw, w in enumerate(sim[1:-1]):
+            sim[iw+1] = '  ' + w + ';'
+        self.htc_master.extend(sim)
 
     def write_wind(self):
+        """ write wind definition block """
 
+        wind_vt = self.vartrees.wind
+        fmt = ' %12.6e'
         wind = []
-        wind.append('begin wind;')
-        wind.append('  density           %3.6f;' % self.vartrees.wind.density)
-        wind.append('  wsp               %3.6f;' % self.vartrees.wind.wsp)
-        wind.append('  tint              %3.6f;' % self.vartrees.wind.tint)
-        wind.append('  horizontal_input  %i;' %
-                    self.vartrees.wind.horizontal_input)
-        wind.append('  windfield_rotations  %3.6f %3.6f %3.6f;' %
-                    tuple(self.vartrees.wind.windfield_rotations))
-        wind.append('  center_pos0          %3.6f %3.6f %3.6f;' %
-                    tuple(self.vartrees.wind.center_pos0))
-        wind.append('  shear_format         %i %3.6f;' %
-                    (self.vartrees.wind.shear_type,
-                     self.vartrees.wind.shear_factor))
-        wind.append('  turb_format          %i;' %
-                    self.vartrees.wind.turb_format)
-        wind.append('  tower_shadow_method  %i;' %
-                    self.vartrees.wind.tower_shadow_method)
+        wind.append('begin wind')
+        wind.append('density' + fmt % wind_vt.density)
+        wind.append('wsp' + fmt % wind_vt.wsp)
+        wind.append('tint' + fmt % wind_vt.tint)
+        wind.append('horizontal_input  %i' % wind_vt.horizontal_input)
+        wind.append('windfield_rotations' + 3*fmt %
+                    tuple(wind_vt.windfield_rotations))
+        wind.append('center_pos0' + 3*fmt % tuple(wind_vt.center_pos0))
+        wind.append('shear_format         %i' % wind_vt.shear_type +
+                    fmt % wind_vt.shear_factor)
+        wind.append('turb_format          %i' % wind_vt.turb_format)
+        wind.append('tower_shadow_method  %i' % wind_vt.tower_shadow_method)
 
-        for wind_ramp in self.vartrees.wind.wind_ramp_abs:
-            wind.append('  wind_ramp_abs %3.6f %3.6f %3.6f %3.6f;' %
-                        tuple(wind_ramp))
+        for wind_ramp in wind_vt.wind_ramp_abs:
+            wind.append('wind_ramp_abs' + 4*fmt % tuple(wind_ramp))
         if self.vartrees.wind.scale_time_start > 0:
-            wind.append('  scale_time_start        %3.6f;' %
-                        self.vartrees.wind.scale_time_start)
+            wind.append('scale_time_start' + fmt % wind_vt.scale_time_start)
         if self.vartrees.wind.wind_ramp_t1 > 0:
-            wind.append('  wind_ramp_factor   %3.6f %3.6f %3.6f %3.6f;' %
-                        (self.vartrees.wind.wind_ramp_t0,
-                         self.vartrees.wind.wind_ramp_t1,
-                         self.vartrees.wind.wind_ramp_factor0,
-                         self.vartrees.wind.wind_ramp_factor1))
-        if self.vartrees.wind.iec_gust:
-            wind.append('    iec_gust %s %3.6f %3.6f %3.6f %3.6f;' %
-                        (self.vartrees.wind.iec_gust_type,
-                         self.vartrees.wind.G_A,
-                         self.vartrees.wind_G_phi0,
-                         self.vartrees.wind.G_t0,
-                         self.vartrees.Wind.G_T))
-        if self.vartrees.wind.turb_format == 1:
-            wind.append('  begin mann;')
-            if self.vartrees.wind.mann.create_turb:
-                wind.append('    create_turb_parameters' + 5*' %3.6f' + ';' %
-                            (self.vartrees.wind.mann.L,
-                             self.vartrees.wind.mann.alfaeps,
-                             self.vartrees.wind.mann.gamma,
-                             self.vartrees.wind.mann.seed,
-                             self.vartrees.wind.mann.highfrq_compensation))
-            wind.append('    filename_u   %s;' %
-                        (os.path.join(self.turb_directory,
-                                      self.vartrees.wind.mann.turb_base_name +
-                                      '_u.bin')))
-            wind.append('    filename_v   %s;' %
-                        (os.path.join(self.turb_directory,
-                                      self.vartrees.wind.mann.turb_base_name +
-                                      '_v.bin')))
-            wind.append('    filename_w   %s;' %
-                        (os.path.join(self.turb_directory,
-                                      self.vartrees.wind.mann.turb_base_name +
-                                      '_w.bin')))
-            wind.append('    box_dim_u    %i %10.3f;' %
-                        (self.vartrees.wind.mann.box_nu,
-                         self.vartrees.wind.mann.box_du))
-            wind.append('    box_dim_v    %i %10.3f;' %
-                        (self.vartrees.wind.mann.box_nv,
-                         self.vartrees.wind.mann.box_dv))
-            wind.append('    box_dim_w    %i %10.3f;' %
-                        (self.vartrees.wind.mann.box_nw,
-                         self.vartrees.wind.mann.box_dw))
-            wind.append('    std_scaling  %3.6f %3.6f %3.6f;' %
-                        tuple(self.vartrees.wind.mann.std_scaling))
-            wind.append('  end mann;')
+            wind.append('wind_ramp_factor' + 4*fmt %
+                        (wind_vt.wind_ramp_t0, wind_vt.wind_ramp_t1,
+                         wind_vt.wind_ramp_factor0, wind_vt.wind_ramp_factor1))
+        if wind_vt.iec_gust:
+            wind.append('iec_gust %s' % wind_vt.iec_gust_type + 4*fmt %
+                        (wind_vt.G_A, wind_vt.G_phi0, wind_vt.G_t0,
+                         wind_vt.G_T))
 
-        if self.vartrees.wind.tower_shadow_method > 0:
+        if wind_vt.turb_format == 1:
+            wind.extend(self.write_mann_turbulence())
+
+        if wind_vt.tower_shadow_method > 0:
             wind.extend(self.write_tower_potential())
 
-        wind.append('end wind;')
+        wind.append('end wind')
+        # Adding indent and semicolons
+        wind[0] += ';'
+        wind[-1] += ';'
+        for iw, w in enumerate(wind[1:-1]):
+            wind[iw+1] = '  ' + w + ';'
+        self.htc_master.extend(wind)
 
-        self.master.extend(wind)
+    def write_mann_turbulence(self):
+        """ write mann turbulence model"""
+
+        fmt = ' %12.6e'
+        mann_vt = self.vartrees.wind.mann
+        mann = []
+        mann.append('begin mann')
+        if mann_vt.create_turb:
+            mann.append(('create_turb_parameters' + 3*fmt + ' %i' + fmt) %
+                        (mann_vt.L, mann_vt.alfaeps, mann_vt.gamma,
+                         mann_vt.seed, mann_vt.highfrq_compensation))
+        mann.append('filename_u %s' % (os.path.join(self.turb_directory,
+                                       mann_vt.turb_base_name + '_u.bin')))
+        mann.append('filename_v %s' % (os.path.join(self.turb_directory,
+                                       mann_vt.turb_base_name + '_v.bin')))
+        mann.append('filename_w %s' % (os.path.join(self.turb_directory,
+                                       mann_vt.turb_base_name + '_w.bin')))
+        mann.append(('box_dim_u %5i'+fmt) % (mann_vt.box_nu, mann_vt.box_du))
+        mann.append(('box_dim_v %5i'+fmt) % (mann_vt.box_nv, mann_vt.box_dv))
+        mann.append(('box_dim_w %5i'+fmt) % (mann_vt.box_nw, mann_vt.box_dw))
+        mann.append('std_scaling'+3*fmt % tuple(mann_vt.std_scaling))
+        mann.append('end mann')
+
+        for im, m in enumerate(mann[1:-1]):
+            mann[im+1] = '  ' + m
+        return mann
 
     def write_tower_potential(self):
+        """ write tower shadow with potential method"""
 
+        fmt = ' %12.6e'
         if hasattr(self.vartrees.wind, 'tower_potential'):
+            tp = self.vartrees.wind.tower_potential
             tower_pot = []
-            tower_pot.append('  begin tower_shadow_potential_2;')
-            tower_pot.append('    tower_mbdy_link %s;' %
-                             self.vartrees.wind.tower_potential.tower_mbdy_link)
-            tower_pot.append('    nsec %d;' %
-                             self.vartrees.wind.tower_potential.nsec)
-            for sec in self.vartrees.wind.tower_potential.sections:
-                tower_pot.append('    radius %3.6f %3.6f;' % tuple(sec))
+            tower_pot.append('begin tower_shadow_potential_2')
+            tower_pot.append('tower_mbdy_link %s' % tp.tower_mbdy_link)
+            tower_pot.append('nsec %d' % tp.nsec)
+            for sec in tp.sections:
+                tower_pot.append('radius' + 2*fmt % tuple(sec))
+            tower_pot.append('end tower_shadow_potential_2')
 
-            tower_pot.append('  end tower_shadow_potential_2;')
+        for im, m in enumerate(tower_pot[1:-1]):
+            tower_pot[im+1] = '  ' + m
         return tower_pot
 
     def write_aero(self):
+        """ write aerodynamic block """
 
+        aerovt = self.vartrees.aero
         aero = []
-        aero.append('begin aero;')
-        aero.append('  nblades  %d;' % self.vartrees.aero.nblades)
-        aero.append('  hub_vec %s -3;' % 'shaft')
+        aero.append('begin aero')
+        aero.append('nblades  %d' % aerovt.nblades)
+        aero.append('hub_vec %s -3' % 'shaft')
         for link in self.vartrees.aero.links:
-            aero.append('  link %i mbdy_c2_def %s;' % (link[0], link[2]))
-        aero.append('  ae_filename      ./%s/%s_ae.dat;' % (self.data_directory, self.case_id))
-        aero.append('  pc_filename      ./%s/%s_pc.dat;' % (self.data_directory, self.case_id))
-        aero.append('  induction_method %i;' % self.vartrees.aero.induction_method)
-        aero.append('  aerocalc_method  %i;' % self.vartrees.aero.aerocalc_method)
-        aero.append('  aerosections     %i;' % self.vartrees.aero.aerosections)
-        aero.append('  ae_sets          %s;' % ' '.join(map(str, self.vartrees.aero.ae_sets)))
-        aero.append('  tiploss_method   %i;' % self.vartrees.aero.tiploss_method)
-        aero.append('  dynstall_method  %i;' % self.vartrees.aero.dynstall_method)
-        aero.append('end aero;')
+            aero.append('link %i mbdy_c2_def %s' % (link[0], link[2]))
+        aero.append('ae_filename ./%s/%s_ae.dat' % (self.data_directory,
+                                                    self.case_id))
+        aero.append('pc_filename ./%s/%s_pc.dat' % (self.data_directory,
+                                                    self.case_id))
+        aero.append('induction_method %i' % aerovt.induction_method)
+        aero.append('aerocalc_method  %i' % aerovt.aerocalc_method)
+        if aerovt.aero_distribution_file != '':
+            aero.append('aero_distribution %s %i' %
+                        (aerovt.aero_distribution_file,
+                         aerovt.aero_distribution_set))
+        else:
+            aero.append('aerosections %i' % aerovt.aerosections)
+        aero.append('ae_sets         %s' % ' '.join(map(str, aerovt.ae_sets)))
+        aero.append('tiploss_method  %i' % aerovt.tiploss_method)
+        aero.append('dynstall_method %i' % aerovt.dynstall_method)
+        aero.append('end aero')
 
-        self.master.extend(aero)
+        for ia, a in enumerate(aero):
+            aero[ia] = a + ';'
+        for ia, a in enumerate(aero[1:-1]):
+            aero[ia+1] = '  ' + a
+
+        self.htc_master.extend(aero)
 
     def write_aerodrag(self):
+        """ write aerodrag block """
 
+        aerodrag = []
+        fmt = ' %12.6e'
         if len(self.vartrees.aerodrag.elements) > 0:
-            self.aerodrag.insert(0, 'begin aerodrag;')
+            aerodrag.append('begin aerodrag')
             for i, e in enumerate(self.vartrees.aerodrag.elements):
-                self.aerodrag.append('  begin aerodrag_element;')
-                self.aerodrag.append('    mbdy_name %s;' % e.mbdy_name)
-                self.aerodrag.append('    aerodrag_sections uniform %i;' %
-                                     e.nsec)
-                self.aerodrag.append('    nsec %d;' % e.nsec)
+                aerodrag.append('begin aerodrag_element')
+                aerodrag.append('  mbdy_name %s' % e.mbdy_name)
+                aerodrag.append('  aerodrag_sections %s %i' % (
+                                     e.dist, e.calculation_points))
+                aerodrag.append('  nsec %d' % e.nsec)
                 for j in range(e.nsec):
-                    self.aerodrag.append('      sec %3.6f %3.6f %3.6f;' %
-                                         tuple(e.sections[j][:]))
-                self.aerodrag.append('  end aerodrag_element;')
-            self.aerodrag.append('end aerodrag;')
+                    aerodrag.append('  sec' + 3*fmt % tuple(e.sections[j][:]))
+                aerodrag.append('end aerodrag_element')
+            aerodrag.append('end aerodrag')
+            for ia, a in enumerate(aerodrag):
+                aerodrag[ia] = a + ';'
+            for ia, a in enumerate(aerodrag[1:-1]):
+                aerodrag[ia+1] = '  ' + a
+            self.htc_master.extend(aerodrag)
 
     def write_structure_res(self):
+        """ write result files for eigen analysis """
 
         structure_out = []
         if self.vartrees.sim.eig_out:
@@ -543,456 +549,250 @@ class HAWC2InputWriter(object):
         self.structure.extend(structure_out)
 
     def write_main_bodies(self):
-        """
-        write all main bodies
-        """
-        main_bodies = []
+        """ write all main bodies """
+
         for name in self.vartrees.body_order:
+            self.structure.extend(self.write_main_body(name))
 
-            body = self.vartrees.main_bodies.get_main_body(name)
+    def write_main_body(self, body_name):
+        """ write one main body """
 
-            main_bodies.append('begin main_body;')
-            if body.copy_main_body is not '':
-                main_bodies.append('  name           %s;' % body.body_name)
-                main_bodies.append('  copy_main_body %s;' % body.copy_main_body)
+        fmt = ' %12.6e'
+        body = self.vartrees.main_bodies.get_main_body(body_name)
+        main_body = []
+        main_body.append('begin main_body')
+        if body.copy_main_body is not '':
+            main_body.append('name           %s' % body.body_name)
+            main_body.append('copy_main_body %s' % body.copy_main_body)
+        else:
+            main_body.append('name        %s' % body.body_name)
+            main_body.append('type        timoschenko')
+            main_body.append('nbodies     %d' % body.nbodies)
+            main_body.append('node_distribution     c2_def')
+
+            if body.damping_type is 'ani':
+                main_body.append('damping_aniso' + 6*fmt %
+                                 tuple(body.damping_aniso))
             else:
-                main_bodies.append('  name        %s;' % body.body_name)
-                main_bodies.append('  type        timoschenko;')
-                main_bodies.append('  nbodies     %d;' % body.nbodies)
-                main_bodies.append('  node_distribution     c2_def;')
+                main_body.append('damping_posdef' + 6*fmt %
+                                 tuple(body.damping_posdef))
 
-                if body.damping_type is 'ani':
-                    main_bodies.append(('  damping_aniso'+6*' %12.6e'+';') %
-                                        tuple(body.damping_aniso))
-                else:
-                    main_bodies.append(('  damping_posdef'+6*' %12.6e'+';') %
-                                        tuple(body.damping_posdef))
+            for i in range(len(body.concentrated_mass)):
+                main_body.append('concentrated_mass' + 8*fmt %
+                                 tuple(body.concentrated_mass[i]))
+            main_body.append('begin timoschenko_input')
+            tmpname = ''.join([i for i in body.body_name if not i.isdigit()])
+            main_body.append('  filename %s' %
+                             (os.path.join(self.data_directory, self.case_id +
+                                           '_' + tmpname + '_st.dat')))
+            if body.st_input_type is not 0:
+                main_body.append('  FPM %d' % body.st_input_type)
+            main_body.append('  set %d %d' % tuple(body.body_set))
+            main_body.append('end timoschenko_input')
+            main_body.append('begin c2_def')
+            main_body.append('  nsec %i' % body.c12axis.shape[0])
+            for i in range(body.c12axis.shape[0]):
+                main_body.append('  sec %2i' % (i+1) + 4*' %22.15e' %
+                                 tuple(body.c12axis[i, :]))
+            main_body.append('end c2_def')
+            if len(body.beam_structure) > 0:
+                self.write_stfile(body)
 
-                for i in range(len(body.concentrated_mass)):
-                    main_bodies.append(('  concentrated_mass'+8*' %12.6e'+';') %
-                                       tuple(body.concentrated_mass[i]))
-                main_bodies.append('  begin timoschenko_input;')
-                tmpname = ''.join([i for i in body.body_name if not i.isdigit()])
-                main_bodies.append('    filename %s;' % 
-                                   (os.path.join(self.data_directory, 
-                                                 self.case_id +'_'+ tmpname + '_st.dat')))
-                if body.st_input_type is not 0:
-                    main_bodies.append('    FPM %d;' % body.st_input_type)
-                main_bodies.append('    set %d %d;' % tuple(body.body_set))
-                main_bodies.append('  end timoschenko_input;')
-                main_bodies.append('  begin c2_def;')
-                main_bodies.append('    nsec %i;' % body.c12axis.shape[0])
-                for i in range(body.c12axis.shape[0]):
-                    main_bodies.append('    sec %2i' % (i+1) +
-                                       (4*' %22.15e'+';') %
-                                       tuple(body.c12axis[i, :]))
-                main_bodies.append('  end c2_def;')
-                if len(body.beam_structure) > 0:
-                    self.write_stfile(body)
+        main_body.append('end main_body')
 
-            main_bodies.append('end main_body;')
-        # add indent    
-        for ib, b in enumerate(main_bodies):
-            main_bodies[ib] = '  '+b
-        self.structure.extend(main_bodies)
+        # add indent and semicolon
+        main_body[0] = '  ' + main_body[0] + ';'
+        main_body[-1] = '  ' + main_body[-1] + ';'
+        for ib, b in enumerate(main_body[1:-1]):
+            main_body[ib+1] = '    ' + b + ';'
+
+        return main_body
 
     def write_orientations(self):
 
         orientations = []
-        orientations.append('begin orientation;')
-
+        orientations.append('begin orientation')
+        fmt = ' %12.6e'
         for name in self.vartrees.body_order:
             body = self.vartrees.main_bodies.get_main_body(name)
             for orien in body.orientations:
-                if isinstance(orien, HAWC2OrientationBase):
-                    orientations.append('  begin base;')
-                    orientations.append('    body %s;' % body.body_name)
-                    orientations.append('    inipos %6.6f %6.6f %6.6f;' %
+                if orien.type == 'base':
+                    orientations.append('begin base')
+                    orientations.append('  body %s' % body.body_name)
+                    orientations.append('  inipos' + 3*fmt %
                                         tuple(orien.inipos))
                     for eulerang in orien.body_eulerang:
-                        orientations.append('    body_eulerang %6.6f %6.6f %6.6f;' %
+                        orientations.append('  body_eulerang'+3*fmt %
                                             tuple(eulerang))
-                    orientations.append('  end base;')
+                    orientations.append('end base')
 
-                elif isinstance(orien, HAWC2OrientationRelative):
-                    orientations.append('  begin relative;')
-                    fmt = '    body1 '+_get_fmt(orien.body1)+ ';'
-                    orientations.append(fmt % tuple(orien.body1))
-                    fmt = '    body2 '+_get_fmt(orien.body2)+ ';'
-                    orientations.append(fmt % tuple(orien.body2))
+                elif orien.type == 'relative':
+                    orientations.append('begin relative')
+                    fmt2 = '  body1 '+_get_fmt(orien.body1)
+                    orientations.append(fmt2 % tuple(orien.body1))
+                    fmt2 = '  body2 '+_get_fmt(orien.body2)
+                    orientations.append(fmt2 % tuple(orien.body2))
                     for eulerang in orien.body2_eulerang:
-                        orientations.append('    body2_eulerang %6.6f %6.6f %6.6f;' %
+                        orientations.append('  body2_eulerang'+3*fmt %
                                             tuple(eulerang))
                     if orien.mbdy2_ini_rotvec_d1[3] != 0.:
-                        orientations.append('    body2_ini_rotvec_d1 %3.6f %3.6f %3.6f %3.6f;' %
+                        orientations.append('  body2_ini_rotvec_d1'+4*fmt %
                                             tuple(orien.mbdy2_ini_rotvec_d1))
-                    orientations.append('  end relative;')
-        orientations.append('end orientation;')
-        # add indent    
-        for ib, b in enumerate(orientations):
-            orientations[ib] = '  '+b
+                    orientations.append('end relative')
+        orientations.append('end orientation')
+        # add indent and semicolon
+        for io, o in enumerate(orientations):
+            orientations[io] = '  ' + o + ';'
+        for io, o in enumerate(orientations[1:-1]):
+            orientations[io+1] = '  ' + o
         self.structure.extend(orientations)
 
     def write_constraints(self):
 
         constraints = []
-
-        constraints.append('begin constraint;')
+        fmt = ' %12.6e'
+        constraints.append('begin constraint')
         for name in self.vartrees.body_order:
             body = self.vartrees.main_bodies.get_main_body(name)
             for con in body.constraints:
                 if con.con_type in ['fix0', 'fix2', 'fix3']:
-                    constraints.append('  begin %s;' % con.con_type)
-                    constraints.append('    body %s;' % con.mbdy)
+                    constraints.append('begin %s' % con.con_type)
+                    constraints.append('  body %s' % con.mbdy)
                     if con.disable_at > 0.:
-                        constraints.append('    disable_at %s;' %
+                        constraints.append('  disable_at %s' %
                                            con.disable_at)
                     if con.con_type in ['fix2', 'fix3']:
-                        constraints.append('    dof %i %i %i;' % tuple(con.dof))
-                    constraints.append('  end %s;' % con.con_type)
+                        constraints.append('  dof %i %i %i' % tuple(con.dof))
+                    constraints.append('end %s' % con.con_type)
 
                 elif con.con_type in ['fix1', 'fix4']:
-                    constraints.append('  begin %s;' % con.con_type)
-                    fmt = '    body1 ' + _get_fmt(con.mbdy1) + ';'
-                    constraints.append(fmt % tuple(con.mbdy1))
-                    fmt = '    body2 ' + _get_fmt(con.mbdy2) + ';'
-                    constraints.append(fmt % tuple(con.mbdy2))
-                    constraints.append('  end %s;' % con.con_type)
+                    constraints.append('begin %s' % con.con_type)
+                    fmt2 = '  body1 ' + _get_fmt(con.mbdy1)
+                    constraints.append(fmt2 % tuple(con.mbdy1))
+                    fmt2 = '  body2 ' + _get_fmt(con.mbdy2)
+                    constraints.append(fmt2 % tuple(con.mbdy2))
+                    constraints.append('end %s' % con.con_type)
 
                 elif 'bearing' in con.con_type:
-                    constraints.append('  begin %s;' % con.con_type)
-                    constraints.append('    name %s; ' % con.name)
-                    fmt = '    body1 '+_get_fmt(con.mbdy1)+ ';'
-                    constraints.append(fmt % tuple(con.mbdy1))
-                    fmt = '    body2 '+_get_fmt(con.mbdy2)+ ';'
-                    constraints.append(fmt % tuple(con.mbdy2))
-                    constraints.append('    bearing_vector %i %3.6f %3.6f %3.6f;' %
+                    constraints.append('begin %s' % con.con_type)
+                    constraints.append('  name %s' % con.name)
+                    fmt2 = '  body1 '+_get_fmt(con.mbdy1)
+                    constraints.append(fmt2 % tuple(con.mbdy1))
+                    fmt2 = '  body2 '+_get_fmt(con.mbdy2)
+                    constraints.append(fmt2 % tuple(con.mbdy2))
+                    constraints.append(('  bearing_vector %i'+3*fmt) %
                                        tuple(con.bearing_vector))
                     if con.con_type == 'bearing3':
-                        constraints.append('    omegas %3.6f %3.6f %3.6f;' %
-                                           con.omegas)
+                        constraints.append('  omegas'+3*fmt % con.omegas)
                     else:
                         if con.disable_at > 0:
-                            constraints.append('    disable_at %s;' %
+                            constraints.append('  disable_at %s' %
                                                con.disable_at)
-                    constraints.append('  end %s;' % con.con_type)
+                    constraints.append('end %s' % con.con_type)
 
-        constraints.append('end constraint;')
-        # add indent
-        for ib, b in enumerate(constraints):
-            constraints[ib] = '  '+b
+        constraints.append('end constraint')
+        # add indent and semicolon
+        for ic, c in enumerate(constraints):
+            constraints[ic] = '  ' + c + ';'
+        for ic, c in enumerate(constraints[1:-1]):
+            constraints[ic+1] = '  ' + c
         self.structure.extend(constraints)
 
-    def write_control_dll(self):
+    def write_structure(self):
+        """ write model structure"""
+
+        self.structure = []
+        self.structure.append('begin new_htc_structure;')
+        self.write_main_bodies()
+        self.write_orientations()
+        self.write_constraints()
+        self.structure.append('end new_htc_structure;')
+
+    def write_dlls(self):
         """
         """
-
-        # Still missing some parameters for the DTUBasicControllerVT
-
         self.controlinp.append('begin dll;')
-        self.controlinp.append('  begin type2_dll;')
-        self.controlinp.append('    name risoe_controller;')
-        self.controlinp.append('    filename  %s/risoe_controller.dll;' %
-                               self.control_directory)
-        if self.vartrees.dlls.risoe_controller.dll_init.rotorspeed_gs == 1:
-            self.controlinp.append('    dll_subroutine_init init_regulation_2;')
-        else:
-            self.controlinp.append('    dll_subroutine_init init_regulation;')
-        self.controlinp.append('    dll_subroutine_update update_regulation;')
-        self.controlinp.append('    arraysizes_init  50 1;')
-        self.controlinp.append('    arraysizes_update  9 100;')
-        self.controlinp.append('    begin init;')
-        self.controlinp.append(';     Overall parameters')
-        self.controlinp.append('      constant   1 %3.6e; Rated power [kW] ' %
-                               (self.vartrees.dlls.risoe_controller.dll_init.
-                                ratedPower * 1e-3))
-        self.controlinp.append('      constant   2 %3.3e; Minimum rotor '
-                               'speed [rad/s]' %
-                               (self.vartrees.dlls.risoe_controller.dll_init.minRPM * 2.*np.pi/60.))
-        self.controlinp.append('      constant   3 %3.6e; Rated rotor speed [rad/s]' %
-                               (self.vartrees.dlls.risoe_controller.dll_init.maxRPM* 2.*np.pi/60.))
-        self.controlinp.append('      constant   4 %3.6e; Maximum allowable generator torque [Nm]' %
-                                self.vartrees.dlls.risoe_controller.dll_init.maxTorque)
-        self.controlinp.append('      constant   5 %3.6e; Minimum pitch angle, theta_min [deg]'  %
-                                self.vartrees.dlls.risoe_controller.dll_init.minPitch)
-        self.controlinp.append('      constant   6  %3.6e; Maximum pitch angle [deg]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.maxPitch)
-        self.controlinp.append('      constant   7  %3.6e; Maximum pitch velocity operation [deg/s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.maxPitchSpeed)
-        self.controlinp.append('      constant   8  %3.6e; Frequency of generator speed filter [Hz]'   %
-                               self.vartrees.dlls.risoe_controller.dll_init.generatorFreq)
-        self.controlinp.append('      constant   9  %3.6e; Damping ratio of speed filter [-]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.generatorDamping)
-        self.controlinp.append('      constant  10  %3.6e; Frequency of free-free DT torsion mode [Hz], if zero no notch filter used' %
-                               self.vartrees.dlls.risoe_controller.dll_init.ffFreq)
-        self.controlinp.append(';     Partial load control parameters')
-        self.controlinp.append('      constant  11   %3.6e; Optimal Cp tracking K factor [kNm/(rad/s)^2];' %
-                               self.vartrees.dlls.risoe_controller.dll_init.Qg)
-        self.controlinp.append('      constant  12   %3.6e; Proportional gain of torque controller [Nm/(rad/s)]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.pgTorque)
-        self.controlinp.append('      constant  13   %3.6e; Integral gain of torque controller [Nm/rad] ' %
-                               self.vartrees.dlls.risoe_controller.dll_init.igTorque)
-        self.controlinp.append('      constant  14   %3.6e; Differential gain of torque controller [Nm/(rad/s^2)]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.dgTorque)
-        self.controlinp.append(';     Full load control parameters')
-        self.controlinp.append('      constant  15   %i; Generator control switch [1=constant power, 2=constant torque]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.generatorSwitch)
-        self.controlinp.append('      constant  16   %3.6e; Proportional gain of pitch controller [rad/(rad/s)]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.pgPitch)
-        self.controlinp.append('      constant  17   %3.6e; Integral gain of pitch controller [rad/rad]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.igPitch)
-        self.controlinp.append('      constant  18   %3.6e; Differential gain of pitch controller [rad/(rad/s^2)]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.dgPitch)
-        self.controlinp.append('      constant  19   %3.6e; Proportional power error gain [rad/W]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.prPowerGain)
-        self.controlinp.append('      constant  20   %3.6e; Integral power error gain [rad/(Ws)]'  %
-                               self.vartrees.dlls.risoe_controller.dll_init.intPowerGain)
-        self.controlinp.append('      constant  21   %3.6e; Coefficient of linear term in aerodynamic gain scheduling, KK1 [deg]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.KK1)
-        self.controlinp.append('      constant  22   %3.6e; Coefficient of quadratic term in aerodynamic gain scheduling, KK2 [deg^2] &' %
-                               self.vartrees.dlls.risoe_controller.dll_init.KK2)
-        self.controlinp.append('; (if zero, KK1 = pitch angle at double gain)')
-        self.controlinp.append('      constant  23   %3.6e; Relative speed for double nonlinear gain [-]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.nlGainSpeed)
-        self.controlinp.append(';     Cut-in simulation parameters')
-        self.controlinp.append('      constant  24   %3.6e; Cut-in time [s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.cutin_t0)
-        self.controlinp.append('      constant  25   %3.6e; Time delay for soft start of torque [1/1P]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.softDelay)
-        self.controlinp.append(';     Cut-out simulation parameters')
-        self.controlinp.append('      constant  26   %3.6e; Cut-out time [s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.stop_t0)
-        self.controlinp.append('      constant  27   %3.6e; Time constant for 1st order filter lag of torque cut-out [s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.TorqCutOff)
-        self.controlinp.append('      constant  28   1; Stop type [1=linear two pitch speed stop, 2=exponential pitch speed stop]')
-        self.controlinp.append('      constant  29   %3.6e; Time delay for pitch stop 1 [s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.PitchDelay1)
-        self.controlinp.append('      constant  30   %3.6e; Maximum pitch velocity during stop 1 [deg/s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.PitchVel1)
-        self.controlinp.append('      constant  31   %3.6e; Time delay for pitch stop 2 [s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.PitchDelay2)
-        self.controlinp.append('      constant  32   %3.6e; Maximum pitch velocity during stop 2 [deg/s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.PitchVel2)
-        self.controlinp.append(';     Expert parameters (keep default values unless otherwise given)')
-        self.controlinp.append('      constant  33   0.5; Lower angle above '
-                               'lowest minimum pitch angle for switch [deg]')
-        self.controlinp.append('      constant  34   0.5; Upper angle above '
-                               ' lowest minimum pitch angle for switch [deg], '
-                               ' if equal then hard switch')
-        self.controlinp.append('      constant  35  95.0; Ratio between '
-                               ' filtered speed and reference speed for '
-                               'fully open torque limits [percantage]')
-        self.controlinp.append('      constant  36   5.0; Time constant of '
-                               '1st order filter on wind speed used for '
-                               'minimum pitch [1/1P]')
-        self.controlinp.append('      constant  37   5.0; Time constant of '
-                               '1st order filter on pitch angle used for gain '
-                               'scheduling [1/1P]')
-        self.controlinp.append(';     Drivetrain damper')
-        self.controlinp.append('      constant  38   0.0; Proportional gain '
-                               'of active DT damper [Nm/(rad/s)], requires '
-                               'frequency in input 10')
-        self.controlinp.append(';     Over speed')
-        self.controlinp.append('      constant  39  %3.6e; Over speed '
-                               'percentage before initiating shut-down' %
-                               self.vartrees.dlls.risoe_controller.dll_init.overspeed_limit)
-        self.controlinp.append(';    Additional non-linear pitch control term')
-        self.controlinp.append('      constant  40  0.0; Err0 [rad/s] ')
-        self.controlinp.append('      constant  41  0.0; ErrDot0 [rad/s^2]')
-        self.controlinp.append('      constant  42  0.0; PitNonLin1 [rad/s]')
-
-        if self.vartrees.dlls.risoe_controller.dll_init.rotorspeed_gs == 1:
-            self.controlinp.append('      constant 43 0.0;')
-            self.controlinp.append('      constant 44 0.0;')
-            self.controlinp.append('      constant 45 0.0;')
-            self.controlinp.append('      constant 46 %f; kp_speed' %
-                                   self.vartrees.dlls.risoe_controller.dll_init.Kp2)
-            self.controlinp.append('      constant 47 %f; invkk1_speed' %
-                                   self.vartrees.dlls.risoe_controller.dll_init.Ko1)
-            self.controlinp.append('      constant 48 %f; invkk2_speed' %
-                                   self.vartrees.dlls.risoe_controller.dll_init.Ko2)
-
-        self.controlinp.append('   end init;')
-        self.controlinp.append(';')
-        self.controlinp.append('    begin output;')
-        self.controlinp.append('      general time; [s] ')
-        self.controlinp.append('      constraint bearing1 shaft_rot 1 only 2; Drivetrain speed [rad/s]')
-        for i in range(self.vartrees.aero.nblades):
-            self.controlinp.append('      constraint bearing2 pitch%d 1 only 1; [rad]' %
-                                   (i + 1))
-        self.controlinp.append('      wind free_wind 1 0.0 0.0 %3.6f; global coords at hub height' %
-                               self.vartrees.wind.center_pos0[2])
-        self.controlinp.append('     general constant 0.0; Pitch rate from external system [rad/s]')
-        self.controlinp.append('    end output;')
-        self.controlinp.append('  end type2_dll;')
-        self.controlinp.append(';')
-        self.vartrees.dlls.risoe_controller.dll_init.active = True
-        if self.vartrees.dlls.risoe_controller.dll_init.active:
-            self.controlinp.append('  begin type2_dll;')
-            self.controlinp.append('    name generator_servo;')
-            self.controlinp.append('    filename  %s/generator_servo.dll;'%self.control_directory)
-            self.controlinp.append('    dll_subroutine_init init_generator_servo;')
-            self.controlinp.append('    dll_subroutine_update update_generator_servo;')
-            self.controlinp.append('    arraysizes_init  6 1;')
-            self.controlinp.append('    arraysizes_update  3 6;')
-            self.controlinp.append('    begin init;')
-            self.controlinp.append('      constant 1  20.0; Frequency of genertor 2nd order control model [Hz] ')
-            self.controlinp.append('      constant 2  0.9; Damping ratio of genertor 2nd order control model [-]')
-            self.controlinp.append('      constant 3 %3.6e; Maximum allowable LSS torque (pull-out torque) [Nm]' %
-                                   self.vartrees.dlls.risoe_controller.dll_init.maxTorque)
-            self.controlinp.append('      constant 4 %3.6e; Generator efficiency [-]' %
-                                   self.vartrees.dlls.risoe_controller.dll_init.generatorEfficiency)
-            self.controlinp.append('      constant 5 1.0; Gear ratio [-]')
-            self.controlinp.append('    end init;')
-            self.controlinp.append(';')
-            self.controlinp.append('    begin output;')
-            self.controlinp.append('      general time;')
-            self.controlinp.append('      dll inpvec 1 1;')
-            self.controlinp.append('      constraint bearing1 shaft_rot 1 only 2;')
-            self.controlinp.append('    end output;')
-            self.controlinp.append(';')
-            self.controlinp.append('    begin actions;')
-            self.controlinp.append('      mbdy moment_int shaft 1 -3 shaft towertop 2;   Generator LSS torque [Nm]')
-            self.controlinp.append('    end actions;')
-            self.controlinp.append('  end type2_dll;')
-        self.controlinp.append(';')
-        self.controlinp.append('  begin type2_dll;')
-        self.controlinp.append('    name servo_with_limits;')
-        self.controlinp.append('    filename  %s/servo_with_limits.dll;' %
-                               self.control_directory)
-        self.controlinp.append('    dll_subroutine_init init_servo_with_limits;')
-        self.controlinp.append('    dll_subroutine_update update_servo_with_limits;')
-        self.controlinp.append('    arraysizes_init  7 1;')
-        self.controlinp.append('    arraysizes_update  4 9;')
-        self.controlinp.append('   begin init;')
-        self.controlinp.append('      constant 1  3; 1: Number of blades [-]')
-        self.controlinp.append('      constant 2  1.0; 2: Filter frequency [Hz]')
-        self.controlinp.append('      constant 3  0.7; 3: Filter damping ratio [-]')
-        self.controlinp.append('      constant 4  %3.6f; 4: Max. pitch speed [deg/s]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.maxServoPitchSpeed)
-        self.controlinp.append('      constant 5  %3.6f; 5: Max. pitch acceleration [deg/s^2]' %
-                               self.vartrees.dlls.risoe_controller.dll_init.maxServoPitchAcc)
-        self.controlinp.append('      constant 6  %3.6f; 6: Min. pitch angle [deg] ' %
-                               self.vartrees.dlls.risoe_controller.dll_init.minServoPitch)
-        self.controlinp.append('      constant 7 90.0; 7: Max. pitch angle [deg]')
-        self.controlinp.append('   end init;')
-        self.controlinp.append('    begin output;')
-        self.controlinp.append('      general time;  1: Time                         [s]')
-        if self.vartrees.dlls.risoe_controller.dll_init.active:
-            for i in range(self.vartrees.rotor.nblades):
-                self.controlinp.append('     dll inpvec 1 %d;  %d: Pitch%d demand angle          [rad]' % (i+2,i+2,i+1))
-
-        if self.vartrees.dlls.risoe_controller.dll_init.FixedPitch:
-            for i in range(self.vartrees.rotor.nblades):
-                self.controlinp.append('    general step 3.0 0.0  [PitchAngle%d];' % (i +1 ))
-
-        self.controlinp.append('    end output;')
-        self.controlinp.append(';')
-        self.controlinp.append('    begin actions;')
-        for i in range(self.vartrees.rotor.nblades):
-            self.controlinp.append('      constraint bearing2 angle pitch%d; Angle pitch%d bearing    [rad]' % (i+1,i+1))
-        self.controlinp.append('    end actions;')
-        self.controlinp.append('  end type2_dll;')
-        self.controlinp.append(';')
+        for name in self.vartrees.dlls_order:
+            self.controlinp.extend(self.write_dll(name))
         self.controlinp.append('end dll;')
+        for i, c in enumerate(self.controlinp[1:-1]):
+            self.controlinp[i+1] = '  ' + c
+
+    def write_dll(self, dll_name):
+        """ write general type2 dll"""
+
+        fmt = '%2i  %12.6e'
+        dll = []
+        dll_vt = getattr(self.vartrees.dlls, dll_name)
+        dll_init = dll_vt. dll_init
+        dll.append('begin type2_dll')
+        dll.append('name %s' % dll_vt.name)
+        dll.append('filename %s' % dll_vt.filename)
+        dll.append('dll_subroutine_init %s' % dll_vt.dll_subroutine_init)
+        dll.append('dll_subroutine_update %s' % dll_vt.dll_subroutine_update)
+        dll.append('arraysizes_init %i %i' % tuple(dll_vt.arraysizes_init))
+        dll.append('arraysizes_update %i %i' % tuple(dll_vt.arraysizes_update))
+        dll.append('begin init')
+
+        for i in range(len(dll_init.init_dic.keys())):
+            val = getattr(dll_init,
+                          dll_init.init_dic[i+1][0])/dll_init.init_dic[i+1][1]
+            dll.append('  constant ' + fmt % (i+1, val))
+
+        dll.append('end init')
+
+        dll.append('begin output')
+        for i in range(len(dll_vt.output.out_dic.keys())):
+            val = getattr(dll_vt.output, 'out_%i' % (i + 1))
+            dll.append('  %s' % val._print())
+        dll.append('end output')
+
+        if len(dll_vt.actions.action_dic.keys()) > 0:
+            dll.append('begin actions')
+            for i in range(len(dll_vt.actions.action_dic.keys())):
+                val = getattr(dll_vt.actions, 'action_%i' % (i + 1))
+                dll.append('  %s' % val._print())
+            dll.append('end actions')
+
+        dll.append('end type2_dll')
+
+        # add indent and semicolon
+        dll[0] += ';'
+        dll[-1] += ';'
+        for i, d in enumerate(dll[1:-1]):
+            dll[i+1] = '  ' + d + ';'
+
+        return dll
 
     def update_c12axis(self):
 
-        self.vartrees.main_bodies.blade1.c12axis = self.vartrees.blade_ae.c12axis.copy()
-        self.vartrees.main_bodies.blade1.beam_structure = self.vartrees.blade_structure
-
-    def write_output_fromfile(self):
-
-        self.sensors.append('begin output;')
-        self.sensors.append(' filename %s;' %
-                            (os.path.join(self.res_directory,self.case_id)))
-        self.sensors.append(' time %3.6f %3.6f;' %
-                            (self.vartrees.output.time_start,
-                             self.vartrees.sim.time_stop))
-        self.sensors.append(' data_format %s;' %
-                             self.vartrees.output.out_format)
-        self.sensors.append(' buffer 1;')
-
-        for i in range(len(self.vartrees.output.sensor_list)):
-            self.sensors.append(' ' + self.vartrees.output.sensor_list[i] + ';')
-        self.sensors.append('end output;')
+        self.vartrees.main_bodies.blade1.c12axis = \
+            self.vartrees.blade_ae.c12axis.copy()
+        self.vartrees.main_bodies.blade1.beam_structure = \
+            self.vartrees.blade_structure
 
     def write_output(self):
 
-        # THIS IS TEMPORARY
-        # WE NEED TO MAKE METHODS FOR USERS TO EASILY ADD SENSORS #FIXME:
+        sns = []
+        sns.append('begin output')
+        sns.append('  filename %s' % (os.path.join(self.res_directory,
+                                                   self.case_id)))
+        sns.append('  time %3.6f %3.6f' % (self.vartrees.output.time_start,
+                                           self.vartrees.sim.time_stop))
+        sns.append('  data_format %s' % self.vartrees.output.out_format)
+        sns.append('  buffer 1')
 
-        self.sensors.append('begin output;')
-        self.sensors.append(' filename %s;' % (os.path.join(self.res_directory, self.case_id)))
-        self.sensors.append(' time %3.6f %3.6f;' % (self.vartrees.output.time_start, self.vartrees.sim.time_stop))
-        self.sensors.append(' data_format %s;'    % self.vartrees.output.out_format)
-        self.sensors.append(' buffer 1;')
-        self.sensors.append(' general time;')
-        self.sensors.append(' constraint bearing1 shaft_rot 2; angle and angle velocity')
-        self.sensors.append(' constraint bearing2 pitch1 5;    angle and angle velocity')
-        self.sensors.append(' constraint bearing2 pitch2 5;    angle and angle velocity')
-        self.sensors.append(' constraint bearing2 pitch3 5;    angle and angle velocity')
-        self.sensors.append(' aero omega;')
-        self.sensors.append(' aero torque;')
-        self.sensors.append(' aero power;')
-        self.sensors.append(' aero thrust;')
-        self.sensors.append(' wind free_wind 1 0.0 0.0 %3.6f; local wind at fixed position: coo (1=global,2=non-rotation rotor coo.), pos x, pos y, pos z' % -self.rotor.hub_height)
-        self.sensors.append(' mbdy momentvec tower 1 1  tower # tower base flange;')
-        self.sensors.append(' mbdy momentvec towertop 1 2 towertop # yaw bearing;')
-        self.sensors.append(' mbdy forcevec  towertop 1 2 towertop # yaw bering;')
-        shaft = self.get_main_body('shaft')
-        self.sensors.append(' mbdy momentvec shaft %d 1  shaft # main bearing;' % (shaft.c12axis.shape[0]-1))
-        self.sensors.append(' mbdy momentvec blade1 1  1 blade1 # blade 1 root;')
-        self.sensors.append(' mbdy forcevec blade1 1  1 blade1 # blade 1 root;')
-        self.sensors.append(' mbdy momentvec blade1 10 1 local # blade 1 50 percent local e coo;')
-        self.sensors.append('end output;')
+        for i in range(len(self.vartrees.output.sensor_list)):
+            sns.append('  ' + self.vartrees.output.sensor_list[i])
+        sns.append('end output')
 
-    def write_sensors(self):
-
-        # OUTDATED - DOESN'T WORK # FIXME:
-
-        path = self.sensor_htcfile
-        fid = open(path, 'w')
-        bladeid = 0
-        for n, blade in self.blade_sensors.iteritems():
-            bladeid += 1
-            for name, sensor in blade.iteritems():
-                self.master.append('begin output;')
-                self.master.append('    filename %s;' % (os.path.join(self.res_directory, self.blade_resfile) + '_' + name + '_' + str(bladeid)))
-                self.master.append('    time %s %s;' % (self.output_tstart, self.output_tstop))
-                self.master.append('    data_format %s;' % self.output_format)
-                self.master.append('    buffer %s;' % self.output_buffer)
-
-                if sensor['name'] == 'azimuth':
-                    self.master.append('    aero azimuth 1;')
-                elif sensor['name'] in sensor_type1:
-                    for point in sensor['sections']:
-                        self.master.append('    aero %s %i %f;' % (sensor['name'], bladeid, point))
-                elif sensor['name'] in sensor_type2:
-                    for point in sensor['sections']:
-                        self.master.append('    aero %s %i %i %f;' % (sensor['name'], bladeid, sensor['dof'], point))
-                elif sensor['name'] in sensor_type3:
-                    for point in sensor['sections']:
-                        self.master.append('    aero %s %i %i %i %f;' % (sensor['name'], sensor['coordsys'], bladeid, sensor['dof'], point))
-                self.master.append('end output;')
-
-        self.master.append('begin output;')
-        self.master.append('    filename %s;' % (os.path.join(self.res_directory, self.rotor_resfile)))
-        self.master.append('    time %s %s;' % (self.output_tstart, self.output_tstop))
-        self.master.append('    data_format  %s;' % self.output_format)
-        self.master.append('    buffer %s;' % self.output_buffer)
-        # self.master.append('    general time;')
-        i = 0
-        for name, sensor in self.rotor_sensors.iteritems():
-            self.master.append('    aero %s;' % sensor['name'])
-            self.rotor_sensors[name]['pos'] = i
-            i += 1
-        self.master.append('end output;')
-        fid.close()
+        sns = [s+';' for s in sns]
+        self.sensors.extend(sns)
 
     def calculate_c12axis(self):
         """
-        compute the 1/2 chord axis based on the blade axis and chordwise rotation point
+        compute the 1/2 chord axis based on the blade axis and chordwise
+        rotation point
         nb: this examples only works for straight blades! # FIXME:
         """
 
@@ -1000,12 +800,13 @@ class HAWC2InputWriter(object):
         b = self.vartrees.blade_geom
         c12axis = np.zeros((b.main_axis.shape[0], 4))
         for i in range(b.main_axis.shape[0]):
-            xc12 = (0.5 - b.p_le[i]) * b.chord[i] * np.cos(b.rot_z[i] * np.pi / 180.)
-            yc12 = - (0.5 - b.p_le[i]) * b.chord[i] * np.sin(b.rot_z[i] * np.pi / 180.)
+            xc12 = (0.5 - b.p_le[i]) * b.chord[i] *\
+                    np.cos(b.rot_z[i] * np.pi / 180.)
+            yc12 = -(0.5 - b.p_le[i]) * b.chord[i] * np.sin(b.rot_z[i] * np.pi / 180.)
             c12axis[i, 0] = -(b.main_axis[i, 0] + xc12)
             c12axis[i, 1] = b.main_axis[i, 1] + yc12
             c12axis[i, 2] = b.main_axis[i, 2] - b.main_axis[0, 2]
-        c12axis[:,3] = b.rot_z
+        c12axis[:, 3] = b.rot_z
         return c12axis
 
     def write_aefile(self):
@@ -1016,7 +817,8 @@ class HAWC2InputWriter(object):
     def write_stfile(self, body):
 
         tmpname = ''.join([i for i in body.body_name if not i.isdigit()])
-        path = os.path.join(self.data_directory, self.case_id + '_' + tmpname + '_st.dat')
+        path = os.path.join(self.data_directory,
+                            self.case_id + '_' + tmpname + '_st.dat')
         write_stfile(path, body, self.case_id)
 
     def write_pcfile(self):
@@ -1051,11 +853,12 @@ class HAWC2AeroInputWriter(HAWC2InputWriter):
 
 class HAWC2SInputWriter(HAWC2InputWriter):
 
-    h2s = []
-    set_tsr_flag = False  # Manually set omega according to TSR
-    include_torsiondeform = 0  # flag for including elasticity
-    wsp_cases = []  # Wind speeds for which to run HAWC2S
-    cases = []  # Other cases to run
+    def __init__(self):
+        super(HAWC2SInputWriter, self).__init__()
+        self.h2s = []
+        self.set_tsr_flag = False  # Manually set omega according to TSR
+        self.wsp_cases = []  # Wind speeds for which to run HAWC2S
+        self.cases = []  # Other cases to run
 
     def write_all(self):
         self.configure_wt()
@@ -1074,13 +877,13 @@ class HAWC2SInputWriter(HAWC2InputWriter):
         self.structure.insert(0, 'begin new_htc_structure;')
         self.structure.append('end new_htc_structure;')
 
-        self.master.extend(self.structure)
+        self.htc_master.extend(self.structure)
         self.write_hawcstab2()
 
     def execute(self):
 
         self.h2s = []
-        self.master = []
+        self.htc_master = []
         self.structure = []
         self.aerodrag = []
         self.controlinp = []
@@ -1097,107 +900,84 @@ class HAWC2SInputWriter(HAWC2InputWriter):
 
     def write_hawcstab2(self):
 
+        self.h2s.append('begin hawcstab2;')
         self.write_hawcstab2_structure()
         self.write_operational_data_file()
         self.write_h2s_operational_data()
         self.write_h2s_control()
         self.write_h2s_commands()
-        self.h2s.insert(0, 'begin hawcstab2;')
         self.h2s.append('end hawcstab2;')
-        self.master.extend(self.h2s)
+        self.htc_master.extend(self.h2s)
 
     def write_h2s_commands(self):
 
+        opt_vt = self.vartrees.h2s.options
+        cmd = []
         for name in self.vartrees.h2s.commands:
             if name == 'compute_optimal_pitch_angle':
-                self.h2s.append('  compute_optimal_pitch_angle use_operational_data;')
+                cmd.append('compute_optimal_pitch_angle use_operational_data')
 
-            elif name == 'compute_steady_states' :
-                self.h2s.append('  compute_steady_states %s %s %s %s;' %
-                                (self.vartrees.h2s.options.bladedeform,
-                                 self.vartrees.h2s.options.tipcorrect,
-                                 self.vartrees.h2s.options.induction,
-                                 self.vartrees.h2s.options.gradients))
+            elif name == 'compute_steady_states':
+                cmd.append('compute_steady_states %s %s %s %s' %
+                           (opt_vt.bladedeform, opt_vt.tipcorrect,
+                            opt_vt.induction, opt_vt.gradients))
 
-            elif name == 'compute_steadystate' :
-                self.h2s.append('  compute_steadystate %s %s %s %s;' %
-                                (self.vartrees.h2s.options.bladedeform,
-                                 self.vartrees.h2s.options.tipcorrect,
-                                 self.vartrees.h2s.options.induction,
-                                 self.vartrees.h2s.options.gradients))
+            elif name == 'compute_steadystate':
+                cmd.append('compute_steadystate %s %s %s %s' %
+                           (opt_vt.bladedeform, opt_vt.tipcorrect,
+                            opt_vt.induction, opt_vt.gradients))
 
-            elif name == 'compute_stability_analysis' :
-                self.h2s.append('  compute_stability_analysis %s %s %i %3.6f'
-                                 ' %3.6f %3.6f %3.6f %s;'
-                                % (self.vartrees.h2s.options.matrixwriteout,
-                                   self.vartrees.h2s.options.eigenvaluewriteout,
-                                   self.vartrees.h2s.options.number_of_modes,
-                                   self.vartrees.h2s.options.maximum_damping,
-                                   self.vartrees.h2s.options.minimum_frequency,
-                                   self.vartrees.h2s.options.zero_pole_threshold,
-                                   self.vartrees.h2s.options.aero_deflect_ratio,
-                                   self.vartrees.h2s.options.frequencysorting))
+            elif name == 'compute_stability_analysis':
+                cmd.append(('compute_stability_analysis %s %s %i'+4*'%12.6e' +
+                           ' %s') % (opt_vt.matrixwriteout,
+                                     opt_vt.eigenvaluewriteout,
+                                     opt_vt.number_of_modes,
+                                     opt_vt.maximum_damping,
+                                     opt_vt.minimum_frequency,
+                                     opt_vt.zero_pole_threshold,
+                                     opt_vt.aero_deflect_ratio,
+                                     opt_vt.frequencysorting))
 
             elif name == 'compute_aeroservoelastic':
-                self.h2s.append('  compute_aeroservoelastic %s %s %i %3.6f %3.6f'
-                                ' %3.6f %3.6f %s;' %
-                                (self.vartrees.h2s.options.matrixwriteout,
-                                 self.vartrees.h2s.options.eigenvaluewriteout,
-                                 self.vartrees.h2s.options.number_of_modes,
-                                 self.vartrees.h2s.options.maximum_damping,
-                                 self.vartrees.h2s.options.minimum_frequency,
-                                 self.vartrees.h2s.options.zero_pole_threshold,
-                                 self.vartrees.h2s.options.aero_deflect_ratio,
-                                 self.vartrees.h2s.options.frequencysorting))
-            elif name == 'compute_controller_input':
-                self.h2s.append('  compute_controller_input;')
-            elif name == 'save_beam_data':
-                self.h2s.append('  save_beam_data;')
-            elif name == 'save_blade_geometry':
-                self.h2s.append('  save_blade_geometry;')
-            elif name == 'save_aero_point_data':
-                self.h2s.append('  save_aero_point_data;')
-            elif name == 'save_profile_coeffs':
-                self.h2s.append('  save_profile_coeffs;')
-            elif name == 'save_power':
-                self.h2s.append('  save_power;')
-            elif name == 'save_induction':
-                self.h2s.append('  save_induction;')
-            elif name == 'save_ol_matrices':
-                self.h2s.append('  save_ol_matrices;')
+                cmd.append(('compute_aeroservoelastic %s %s %i'+4*'%12.6e'+'%s'
+                            ) % (opt_vt.matrixwriteout,
+                                 opt_vt.eigenvaluewriteout,
+                                 opt_vt.number_of_modes,
+                                 opt_vt.maximum_damping,
+                                 opt_vt.minimum_frequency,
+                                 opt_vt.zero_pole_threshold,
+                                 opt_vt.aero_deflect_ratio,
+                                 opt_vt.frequencysorting))
+
             elif name == 'save_cl_matrices_all':
-                if self.vartrees.h2s.options.vloc_out:
-                    self.h2s.append('  save_cl_matrices_all vloc_out;')
+                if opt_vt.vloc_out:
+                    cmd.append('save_cl_matrices_all vloc_out')
                 else:
-                    self.h2s.append('  save_cl_matrices_all;')
+                    cmd.append('save_cl_matrices_all')
             elif name == 'compute_structural_modal_analysis':
-                if self.vartrees.h2s.options.blade_only:
-                    self.h2s.append('  compute_structural_modal_analysis '
-                                    'bladeonly %i;' %
-                                    self.vartrees.h2s.options.number_of_modes)
+                if opt_vt.blade_only:
+                    cmd.append('compute_structural_modal_analysis '
+                               'bladeonly %i' % opt_vt.number_of_modes)
                 else:
-                    self.h2s.append('  compute_structural_modal_analysis '
-                                    'nobladeonly %i;' %
-                                    self.vartrees.h2s.options.number_of_modes)
-            elif 'steady_state_convergence_limits' in name:
-                self.h2s.append('  '+name+';')
-            elif 'degrees_of_freedom' in name:
-                self.h2s.append('  '+name+';')
-            elif name == 'print_full_precision':
-                self.h2s.append('  print_full_precision;')
+                    cmd.append('compute_structural_modal_analysis '
+                               'nobladeonly %i' % opt_vt.number_of_modes)
 
             elif name == 'basic_dtu_we_controller':
                 init = self.vartrees.dlls.risoe_controller.dll_init
 
-                self.h2s.append('  basic_dtu_we_controller %1.9e %1.9e %1.9e '
-                                '%1.9e %1.9e %1.9e %1.9e %1.9e %1.9e %1.9e '
-                                '%i %1.9e %1.9e %1.9e;' %
-                                (init.pgTorque, init.igTorque, init.Qg,
-                                 init.pgPitch, init.igPitch,
-                                 init.KK1, init.KK2,
-                                 init.generatorFreq, init.generatorDamping,
-                                 init.ffFreq, init.generatorSwitch,
-                                 init.Kp2, init.Ko1, init.Ko2))
+                cmd.append('basic_dtu_we_controller %1.9e %1.9e %1.9e '
+                           '%1.9e %1.9e %1.9e %1.9e %1.9e %1.9e %1.9e '
+                           '%i %1.9e %1.9e %1.9e' %
+                           (init.pgTorque, init.igTorque, init.Qg,
+                            init.pgPitch, init.igPitch,
+                            init.KK1, init.KK2,
+                            init.generatorFreq, init.generatorDamping,
+                            init.ffFreq, init.generatorSwitch,
+                            init.Kp2, init.Ko1, init.Ko2))
+            else:
+                cmd.append(name)
+        cmd = ['  ' + c + ';' for c in cmd]
+        self.h2s.extend(cmd)
 
     def write_operational_data_file(self):
 
@@ -1218,28 +998,24 @@ class HAWC2SInputWriter(HAWC2InputWriter):
         # operational point is interpolated from the .opt file
         elif h2s.wsp_curve.shape[0] > 0:
 
-            # self._logger.info('Operational data wsp_cases %d'%len(h2s.wsp_cases)) # FIXME:
             for w in h2s.wsp_cases:
                 if self.set_tsr_flag:
                     minRPM = ctrl.minRPM / ctrl.gearRatio
                     maxRPM = ctrl.maxRPM / ctrl.gearRatio
                     omega = ctrl.designTSR * w / self.vartrees.blade_ae.radius
                     r = max(minRPM, min(maxRPM, omega * 60 / (2. * np.pi)))
-                    # self._logger.info('Setting RPM according to designTSR. wsp = %f TSR = %f RPM = %f' % (w, ctrl.designTSR, r)) # FIXME:
                 else:
                     r = np.interp(w, h2s.wsp_curve, h2s.rpm_curve)
                 p = np.interp(w, h2s.wsp_curve, h2s.pitch_curve)
                 wsp.append(w)
                 pitch.append(p)
                 rpm.append(r)
-                # self._logger.info('adding case %f %f %f' % (w, p, r)) # FIXME:
 
         for case in h2s.cases:
             try:
                 wsp.append(case['wsp'])
                 pitch.append(case['pitch'])
                 rpm.append(case['rpm'])
-                # self._logger.info('adding case %f %f %f' % (case['wsp'], case['pitch'], case['rpm'])) # FIXME:
 
             except:
                 raise RuntimeError('wrong inputs in case')
@@ -1253,148 +1029,112 @@ class HAWC2SInputWriter(HAWC2InputWriter):
             data = np.array([h2s.wsp_curve, h2s.pitch_curve, h2s.rpm_curve]).T
 
         fid = open(self.case_id + '.opt', 'w')
-        fid.write('%i Wind speed [m/s]          Pitch [deg]     Rot. speed [rpm]\n' % data.shape[0])
+        fid.write(('%i Wind speed [m/s]          Pitch [deg]     ' +
+                  'Rot. speed [rpm]\n') % data.shape[0])
         np.savetxt(fid, data)
         fid.close()
 
     def write_hawcstab2_structure(self):
 
-        if self.from_file:
-            self.h2s.append('  begin ground_fixed_substructure;')
-            for name in self.vartrees.h2s.ground_fixed.main_body:
-                self.h2s.append('    main_body %s;' % name)
-            if self.vartrees.h2s.ground_fixed.log_decrements[0] != 0:
-                self.h2s.append('    log_decrements %3.6f %3.6f;' %
-                                tuple(self.vartrees.h2s.ground_fixed.log_decrements))
-            self.h2s.append('  end ground_fixed_substructure;')
+        h2s_vt = self.vartrees.h2s
+        st = []
+        st.append('begin ground_fixed_substructure')
+        for name in h2s_vt.ground_fixed.main_body:
+            st.append('  main_body %s' % name)
+        if h2s_vt.ground_fixed.log_decrements[0] != 0:
+            st.append('  log_decrements %12.6f %12.6f' %
+                      tuple(h2s_vt.ground_fixed.log_decrements))
+        st.append('end ground_fixed_substructure')
 
-            self.h2s.append('  begin rotating_axissym_substructure;')
-            for name in self.vartrees.h2s.rotating_axissym.main_body:
-                self.h2s.append('    main_body %s;' % name)
-            if self.vartrees.h2s.rotating_axissym.log_decrements[0] != 0:
-                self.h2s.append('    log_decrements %3.6f %3.6f;' %
-                                tuple(self.vartrees.h2s.rotating_axissym.log_decrements))
-            self.h2s.append('  end rotating_axissym_substructure;')
+        st.append('begin rotating_axissym_substructure')
+        for name in h2s_vt.rotating_axissym.main_body:
+            st.append('  main_body %s' % name)
+        if h2s_vt.rotating_axissym.log_decrements[0] != 0:
+            st.append('  log_decrements %12.6f %12.6f' %
+                      tuple(h2s_vt.rotating_axissym.log_decrements))
+        st.append('end rotating_axissym_substructure')
 
-            self.h2s.append('  begin rotating_threebladed_substructure;')
-            for name in self.vartrees.h2s.rotating_threebladed.main_body:
-                self.h2s.append('    main_body %s;' % name)
-            if self.vartrees.h2s.rotating_threebladed.log_decrements[0] != 0:
-                self.h2s.append('    log_decrements %3.6f %3.6f %3.6f %3.6f %3.6f %3.6f;' %
-                                tuple(self.vartrees.h2s.rotating_threebladed.log_decrements))
-            self.h2s.append('    second_order_actuator %s %3.6f %3.6f;' %
-                            (self.vartrees.h2s.second_order_actuator.name,
-                             self.vartrees.h2s.second_order_actuator.frequency,
-                             self.vartrees.h2s.second_order_actuator.damping))
-            self.h2s.append('  end rotating_threebladed_substructure;')
-        else:
-            self.h2s.append('  begin ground_fixed_substructure;')
-            self.h2s.append('    main_body tower;')
-            self.h2s.append('    main_body towertop;')
-            self.h2s.append('  end ground_fixed_substructure;')
-            self.h2s.append('  begin rotating_axissym_substructure;')
-            self.h2s.append('    main_body shaft;')
-            self.h2s.append('  end rotating_axissym_substructure;')
-            self.h2s.append('  begin rotating_threebladed_substructure;')
-            self.h2s.append('    main_body hub1;')
-            self.h2s.append('    main_body blade1;')
-            self.h2s.append('    second_order_actuator pitch1  100 0.9;')
-            self.h2s.append('  end rotating_threebladed_substructure;')
+        st.append('begin rotating_threebladed_substructure')
+        for name in h2s_vt.rotating_threebladed.main_body:
+            st.append('  main_body %s' % name)
+        if h2s_vt.rotating_threebladed.log_decrements[0] != 0:
+            st.append('  log_decrements' + 6*' %12.6f' %
+                      tuple(h2s_vt.rotating_threebladed.log_decrements))
+        st.append('  second_order_actuator %s %12.6e %12.6e' %
+                  (h2s_vt.second_order_actuator.name,
+                   h2s_vt.second_order_actuator.frequency,
+                   h2s_vt.second_order_actuator.damping))
+        st.append('end rotating_threebladed_substructure')
+
+        st = ['  ' + s + ';' for s in st]
+        self.h2s.extend(st)
 
     def write_h2s_control(self):
 
-        self.h2s.append('  begin controller_tuning;')
-        self.h2s.append('    partial_load %3.6f %3.6f;' %
-                        (self.vartrees.dlls.risoe_controller.dll_init.poleFreqTorque,
-                         self.vartrees.dlls.risoe_controller.dll_init.poleDampTorque))
-        self.h2s.append('    full_load %3.6f %3.6f;' %
-                        (self.vartrees.dlls.risoe_controller.dll_init.poleFreqPitch,
-                         self.vartrees.dlls.risoe_controller.dll_init.poleDampPitch))
-        self.h2s.append('    gain_scheduling %d;' %
-                        self.vartrees.dlls.risoe_controller.dll_init.gainScheduling)
-        self.h2s.append('    constant_power %d; ' %
-                        self.vartrees.dlls.risoe_controller.dll_init.generatorSwitch)
+        ctr = []
+        dll_init = self.vartrees.dlls.risoe_controller.dll_init
+        ctr.append('begin controller_tuning')
+        ctr.append('  partial_load %3.6f %3.6f' % (dll_init.poleFreqTorque,
+                                                   dll_init.poleDampTorque))
+        ctr.append('  full_load %3.6f %3.6f' % (dll_init.poleFreqPitch,
+                                                dll_init.poleDampPitch))
+        ctr.append('  gain_scheduling %d' % dll_init.gainScheduling)
+        ctr.append('  constant_power %d' % dll_init.generatorSwitch)
 
         if len(self.vartrees.h2s.options.regions) > 1:
-            self.h2s.append('    regions %i %i %i %i; ' %
-                            tuple(self.vartrees.h2s.options.regions))
-        self.h2s.append('  end controller_tuning;')
+            ctr.append('  regions %i %i %i %i' %
+                       tuple(self.vartrees.h2s.options.regions))
+        ctr.append('end controller_tuning')
 
-        if self.from_file:
-            self.h2s.append('  begin controller;')
-            self.h2s.append('    begin input;')
-            for i in range(len(self.vartrees.h2s.ch_list_in.sensor_list)):
-                self.h2s.append('      '+self.vartrees.h2s.ch_list_in.sensor_list[i]+';')
-            self.h2s.append('    end input;')
-            self.h2s.append('    begin output;')
-            for i in range(len(self.vartrees.h2s.ch_list_out.sensor_list)):
-                self.h2s.append('      '+self.vartrees.h2s.ch_list_out.sensor_list[i]+';')
-            self.h2s.append('    end output;')
-        else:
-            self.h2s.append('  begin controller;')
-            self.h2s.append('    begin input;')
-            self.h2s.append('     constraint bearing1 shaft_rot;')
-            self.h2s.append('     constraint bearing2 pitch1 collective;')
-            self.h2s.append('     constraint bearing2 pitch1 cosine;')
-            self.h2s.append('     constraint bearing2 pitch1 sine;')
-            self.h2s.append('    end input;')
-            self.h2s.append('    begin output;')
-            self.h2s.append('      constraint bearing1 shaft_rot 1 only 2;')
-            self.h2s.append('      constraint bearing2 pitch1 1 only 1 collective;')
-            self.h2s.append('      constraint bearing2 pitch1 1 only 1 cosine;')
-            self.h2s.append('      constraint bearing2 pitch1 1 only 1 sine;')
-            self.h2s.append('      mbdy momentvec hub1 1 0 hub1 only 1 collective;')
-            self.h2s.append('      mbdy momentvec hub1 1 0 hub1 only 1 cosine;')
-            self.h2s.append('      mbdy momentvec hub1 1 0 hub1 only 1 sine;')
-            self.h2s.append('      mbdy momentvec blade1 1 0 blade1 only 2 collective;')
-            self.h2s.append('      mbdy momentvec blade1 1 0 blade1 only 2 cosine;')
-            self.h2s.append('      mbdy momentvec blade1 1 0 blade1 only 2 sine;')
-            self.h2s.append('      mbdy momentvec blade1 1 0 blade1 only 1 collective;')
-            self.h2s.append('      mbdy momentvec blade1 1 0 blade1 only 1 cosine;')
-            self.h2s.append('      mbdy momentvec blade1 1 0 blade1 only 1 sine;')
-            self.h2s.append('     end output;')
+        ctr.append('begin controller')
+        ctr.append('  begin input')
+        for i in range(len(self.vartrees.h2s.ch_list_in.sensor_list)):
+            ctr.append('    '+self.vartrees.h2s.ch_list_in.sensor_list[i])
+        ctr.append('  end input')
+        ctr.append('  begin output')
+        for i in range(len(self.vartrees.h2s.ch_list_out.sensor_list)):
+            ctr.append('    '+self.vartrees.h2s.ch_list_out.sensor_list[i])
+        ctr.append('  end output')
 
-        self.h2s.append('  end controller;')
+        ctr.append('end controller')
+
+        ctr = ['  ' + c + ';' for c in ctr]
+        self.h2s.extend(ctr)
 
     def write_h2s_operational_data(self):
 
-        self.h2s.append('  operational_data_filename %s;' %
-                        (self.case_id + '.opt'))
+        dll_init = self.vartrees.dlls.risoe_controller.dll_init
+        opt = []
+        opt.append('operational_data_filename %s' % self.case_id + '.opt')
 
-        self.h2s.append('  begin operational_data;')
-        self.h2s.append('    windspeed %3.6f %3.6f %d;' %
-                        (self.vartrees.dlls.risoe_controller.dll_init.Vin,
-                         self.vartrees.dlls.risoe_controller.dll_init.Vout,
-                         self.vartrees.dlls.risoe_controller.dll_init.nV))
-        self.h2s.append('    genspeed %3.6f %3.6f;' %
-                        (self.vartrees.dlls.risoe_controller.dll_init.minRPM,
-                         self.vartrees.dlls.risoe_controller.dll_init.maxRPM))
-        self.h2s.append('    gearratio %3.6f;' %
-                        self.vartrees.dlls.risoe_controller.dll_init.gearRatio)
-        self.h2s.append('    minpitch %3.6f;' %
-                        self.vartrees.dlls.risoe_controller.dll_init.minPitch)
-        self.h2s.append('    opt_lambda %.20e;' %
-                        self.vartrees.dlls.risoe_controller.dll_init.designTSR)
-        self.h2s.append('    maxpow %3.6e;' %
-                        (self.vartrees.dlls.risoe_controller.dll_init.ratedAeroPower))
-        self.h2s.append('    prvs_turbine %d;' %
-                        self.vartrees.dlls.risoe_controller.dll_init.prvs_turbine)
-        self.h2s.append('    include_torsiondeform %d;' %
-                        self.vartrees.h2s.options.include_torsiondeform)
+        opt.append('begin operational_data')
+        opt.append('  windspeed %12.6e %12.6e %d' % (dll_init.Vin, dll_init.Vout,
+                                                     dll_init.nV))
+        opt.append('  genspeed %12.6e %12.6e' % (dll_init.minRPM,
+                                                 dll_init.maxRPM))
+        opt.append('  gearratio %12.6e' % dll_init.gearRatio)
+        opt.append('  minpitch %12.6e' % dll_init.minPitch)
+        opt.append('  opt_lambda %22.15e' % dll_init.designTSR)
+        opt.append('  maxpow %12.6e' % dll_init.ratedAeroPower)
+        opt.append('  prvs_turbine %d' % dll_init.prvs_turbine)
+        opt.append('  include_torsiondeform %d' %
+                   self.vartrees.h2s.options.include_torsiondeform)
         if self.vartrees.h2s.options.remove_torque_limits:
-            self.h2s.append('    remove_torque_limits %d;' %
-                            self.vartrees.h2s.options.remove_torque_limits)
-        self.h2s.append('  end operational_data;')
+            opt.append('  remove_torque_limits %d' %
+                       self.vartrees.h2s.options.remove_torque_limits)
+        opt.append('end operational_data')
 
+        opt = ['  ' + o + ';' for o in opt]
+        self.h2s.extend(opt)
 
 if __name__ == '__main__':
 
     from hawc2_inputreader import HAWC2InputReader
 
     a = HAWC2InputReader()
-    a.htc_master_file = '.\DTU_10MW_RWT_hs2.htc'
+    a.htc_master_file = '.\DTU_10MW_RWT_hs2.htc'#'.\dlc12_wsp04_wdir010_s17001.htc'
     a.execute()
-    
+
     b = HAWC2SInputWriter()
     b.vartrees = a.vartrees
     b.execute()

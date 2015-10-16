@@ -3,7 +3,7 @@ from hawc2_inputdict import HAWC2InputDict, read_hawc2_st_file, \
                               read_hawc2_stKfull_file, read_hawc2_pc_file, \
                               read_hawc2_ae_file
 from hawc2_vartrees import HAWC2VarTrees, HAWC2Simulation, HAWC2Wind,\
-                           HAWC2TowerPotential2, HAWC2Mann, HAWC2Aero,\
+                           HAWC2Aero,\
                            HAWC2AirfoilDataset, HAWC2AirfoilPolar,\
                            HAWC2AeroDrag, HAWC2AeroDragElement, HAWC2MainBody,\
                            HAWC2BeamStructure, HAWC2Type2DLL, HAWC2OutputVT,\
@@ -95,14 +95,10 @@ class HAWC2InputReader(object):
         elif var is not None:
             if isinstance(getattr(vt, name), list) and isinstance(var, str):
                 setattr(vt, name, [var])
+
             else:
                 setattr(vt, name, var)
-            #try:
-            #    setattr(vt, name, var)
-            #except:
-            #    print 'HERE'
-            #    # Needed when the list has only one entry and it is a str
-            #    setattr(vt, name, [var])
+
         return vt
 
     def add_simulation(self, section):
@@ -130,6 +126,7 @@ class HAWC2InputReader(object):
         vt = self.set_entry(vt, section, 'center_pos0')
         vt = self.set_entry(vt, section, 'windfield_rotations')
         vt = self.set_entry(vt, section, 'tint')
+        vt = self.set_entry(vt, section, 'scale_time_start')
         shear = section.get_entry('shear_format')
         vt.shear_type = shear[0]
         vt.shear_factor = shear[1]
@@ -137,7 +134,7 @@ class HAWC2InputReader(object):
         vt = self.set_entry(vt, section, 'turb_format')
         pot = section.get_entry('tower_shadow_potential_2')
         if pot is not None:
-            vt.add('tower_potential', HAWC2TowerPotential2())
+            vt.add_shadow('tower_potential')
             vt.tower_potential.tower_mbdy_link =\
                 pot.get_entry('tower_mbdy_link')
             vt.tower_potential.nsec = pot.get_entry('nsec')
@@ -163,7 +160,7 @@ class HAWC2InputReader(object):
             vt.G_T = gust[4]
         if vt.turb_format == 1:
             mann = section.get_entry('mann')
-            vt.add('mann', HAWC2Mann())
+            vt.add_turbulence('mann')
 
             temp = mann.get_entry('create_turb_parameters')
             if temp is not None:
@@ -198,6 +195,11 @@ class HAWC2InputReader(object):
         vt = self.set_entry(vt, section, 'tiploss_method')
         vt = self.set_entry(vt, section, 'dynstall_method')
         vt = self.set_entry(vt, section, 'aerosections')
+        aero_dist = section.get_entry('aero_distribution')
+        if aero_dist is not None:
+            vt.aero_distribution_file = aero_dist[0]
+            vt.aero_distribution_set = int(aero_dist[1])
+
         vt = self.set_entry(vt, section, 'ae_filename')
         vt = self.set_entry(vt, section, 'pc_filename')
         vt = self.set_entry(vt, section, 'ae_sets')
@@ -259,6 +261,7 @@ class HAWC2InputReader(object):
             e = self.set_entry(e, entry, 'mbdy_name')
             dist = entry.get_entry('aerodrag_sections')
             e.dist = dist[0]
+            e.calculation_points = int(dist[1])
             e = self.set_entry(e, entry, 'nsec')
             e = self.set_entry(e, entry, 'sections', h2name='sec')
             vt.elements.append(e)
@@ -432,6 +435,7 @@ class HAWC2InputReader(object):
             if sec.name == 'type2_dll':
                 dll = self.add_type2_dll(sec)
                 self.vartrees.dlls.add_dll(dll.name, dll)
+                self.vartrees.dlls_order.append(dll.name)
             elif sec.name == 'hawc_dll':
                 raise NotImplemented('%s: hawc_dll type not implemented, \
                                      use type2 dlls' % sec.get_entry('name'))
@@ -447,24 +451,16 @@ class HAWC2InputReader(object):
         dll = self.set_entry(dll, sec, 'arraysizes_update', required=True)
         dll = self.set_entry(dll, sec, 'deltat')
 
-        # read init variables
         init = dll.set_init(dll.name)
         constants = sec.get_entry('init').entries
         init.set_constants(constants)
-        try:
-            output = dll.set_output(dll.name)
-            constants = sec.get_entry('output').entries
-            output.set_outputs(constants)
-        except:
-            # self._logger.info('no outputs defined for dll %s' % dll.name) # FIXME:
-            pass
-        try:
-            actions = dll.set_actions(dll.name)
-            constants = sec.get_entry('actions').entries
-            actions.set_outputs(constants)
-        except:
-            # self._logger.info('no actions defined for dll %s' % dll.name) # FIXME:
-            pass
+
+        io = sec.get_entry('output').entries
+        dll.output.set_outputs(io)
+
+        if sec.get_entry('actions') is not None:
+            io = sec.get_entry('actions').entries
+            dll.actions.set_actions(io)
         return dll
 
     def add_output(self, section):
@@ -472,7 +468,7 @@ class HAWC2InputReader(object):
         o = HAWC2OutputVT()
         o = self.set_entry(o, section, 'filename', required=True)
         o = self.set_entry(o, section, 'out_buffer', h2name='buffer')
-        o = self.set_entry(o, section, 'data_format')
+        o = self.set_entry(o, section, 'out_format', h2name='data_format')
         time = section.get_entry('time')
         o.time_start = time[0]
         o.time_stop = time[1]
@@ -745,7 +741,7 @@ class HAWC2InputReader(object):
 if __name__ == '__main__':
 
     a = HAWC2InputReader()
-    a.htc_master_file = '.\DTU_10MW_RWT_hs2.htc'
+    a.htc_master_file = '.\dlc12_wsp04_wdir010_s17001.htc'
     a.execute()
     #print a.vartrees.main_bodies.tower.orientations
     #print a.vartrees.main_bodies.shaft.orientations
