@@ -464,7 +464,7 @@ class HAWC2Type2DLLIO(object):
     def __init__(self):
         self.out_dic = {}
         self.action_dic = {}
-        
+
     def set_outputs(self, entries):
         for i, c in enumerate(entries):
             setattr(self, 'out_%i' % (i + 1), c)
@@ -497,7 +497,6 @@ class HAWC2Type2DLL(object):
         self.arraysizes_init = []    # size of array in the initialization call
         self.arraysizes_update = []  # size of array in the update call
         self.deltat = 0.0            # Time between dll calls.
-        #self.dll_init = HAWC2Type2DLLinit()   # Slot for DLL specific
         self.output = HAWC2Type2DLLIO()   # Outputs for DLL specific
         self.actions = HAWC2Type2DLLIO()  # Actions for DLL specific
         self.init_dic = {}

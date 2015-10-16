@@ -498,8 +498,7 @@ class HAWC2InputWriter(object):
         aero.append('dynstall_method %i' % aerovt.dynstall_method)
         aero.append('end aero')
 
-        for ia, a in enumerate(aero):
-            aero[ia] = a + ';'
+        aero = [a + ';' for a in aero]
         for ia, a in enumerate(aero[1:-1]):
             aero[ia+1] = '  ' + a
 
@@ -522,8 +521,7 @@ class HAWC2InputWriter(object):
                     aerodrag.append('  sec' + 3*fmt % tuple(e.sections[j][:]))
                 aerodrag.append('end aerodrag_element')
             aerodrag.append('end aerodrag')
-            for ia, a in enumerate(aerodrag):
-                aerodrag[ia] = a + ';'
+            aerodrag = [a + ';' for a in aerodrag]
             for ia, a in enumerate(aerodrag[1:-1]):
                 aerodrag[ia+1] = '  ' + a
             self.htc_master.extend(aerodrag)
@@ -641,8 +639,7 @@ class HAWC2InputWriter(object):
                     orientations.append('end relative')
         orientations.append('end orientation')
         # add indent and semicolon
-        for io, o in enumerate(orientations):
-            orientations[io] = '  ' + o + ';'
+        orientations = ['  ' + o + ';' for o in orientations]
         for io, o in enumerate(orientations[1:-1]):
             orientations[io+1] = '  ' + o
         self.structure.extend(orientations)
@@ -692,8 +689,7 @@ class HAWC2InputWriter(object):
 
         constraints.append('end constraint')
         # add indent and semicolon
-        for ic, c in enumerate(constraints):
-            constraints[ic] = '  ' + c + ';'
+        constraints = ['  ' + c + ';' for c in constraints]
         for ic, c in enumerate(constraints[1:-1]):
             constraints[ic+1] = '  ' + c
         self.structure.extend(constraints)
