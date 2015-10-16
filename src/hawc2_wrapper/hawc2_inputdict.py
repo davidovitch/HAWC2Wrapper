@@ -31,13 +31,13 @@ class Entry(object):
         """pretty print the entry"""
 
         if isinstance(self.val, str):
-            return '%s%s' % (tab * ' ', self.name + ' ' + self.val + ' ;\n')
+            return '%s%s' % (tab * ' ', self.name + ' ' + self.val)
         try:
             return '%s%s' % (tab * ' ', self.name + ' ' +
-                             ' '.join(map(str, self.val)) + ' ;\n')
+                             ' '.join(map(str, self.val)))
         except:
             return '%s%s' % (tab * ' ', self.name + ' ' +
-                             str(self.val) + ' ;\n')
+                             str(self.val))
 
 
 class Section(object):
