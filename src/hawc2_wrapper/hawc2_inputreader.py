@@ -171,10 +171,15 @@ class HAWC2InputReader(object):
                 vt.mann.seed = temp[3]
                 vt.mann.highfrq_compensation = temp[4]
             turb = mann.get_entry('filename_u').split('/')
-            try:
-                vt.turb_directory = turb[:-2]
-            except:
-                pass
+            if len(turb) == 1:
+                turb = mann.get_entry('filename_u').split('\\')
+                if len(turb) == 1:
+                    pass
+                else:
+                    vt.turb_directory = '\\'.join(turb[:-1])
+            else:
+                vt.turb_directory = '/'.join(turb[:-1])
+
             vt.mann.turb_base_name = turb[-1].strip('u.bin')
             vt.mann.box_nu = mann.get_entry('box_dim_u')[0]
             vt.mann.box_nv = mann.get_entry('box_dim_v')[0]
@@ -741,8 +746,6 @@ class HAWC2InputReader(object):
 if __name__ == '__main__':
 
     a = HAWC2InputReader()
-    a.htc_master_file = '.\dlc12_wsp04_wdir010_s17001.htc'
+    a.htc_master_file = '.\main_h2.htc'
     a.execute()
-    #print a.vartrees.main_bodies.tower.orientations
-    #print a.vartrees.main_bodies.shaft.orientations
 

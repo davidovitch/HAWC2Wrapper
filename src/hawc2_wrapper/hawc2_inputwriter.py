@@ -438,11 +438,11 @@ class HAWC2InputWriter(object):
                         (mann_vt.L, mann_vt.alfaeps, mann_vt.gamma,
                          mann_vt.seed, mann_vt.highfrq_compensation))
         mann.append('filename_u %s' % (os.path.join(self.turb_directory,
-                                       mann_vt.turb_base_name + '_u.bin')))
+                                       mann_vt.turb_base_name + 'u.bin')))
         mann.append('filename_v %s' % (os.path.join(self.turb_directory,
-                                       mann_vt.turb_base_name + '_v.bin')))
+                                       mann_vt.turb_base_name + 'v.bin')))
         mann.append('filename_w %s' % (os.path.join(self.turb_directory,
-                                       mann_vt.turb_base_name + '_w.bin')))
+                                       mann_vt.turb_base_name + 'w.bin')))
         mann.append(('box_dim_u %5i'+fmt) % (mann_vt.box_nu, mann_vt.box_du))
         mann.append(('box_dim_v %5i'+fmt) % (mann_vt.box_nv, mann_vt.box_dv))
         mann.append(('box_dim_w %5i'+fmt) % (mann_vt.box_nw, mann_vt.box_dw))
@@ -1123,14 +1123,3 @@ class HAWC2SInputWriter(HAWC2InputWriter):
         opt = ['  ' + o + ';' for o in opt]
         self.h2s.extend(opt)
 
-if __name__ == '__main__':
-
-    from hawc2_inputreader import HAWC2InputReader
-
-    a = HAWC2InputReader()
-    a.htc_master_file = '.\DTU_10MW_RWT_hs2.htc'#'.\dlc12_wsp04_wdir010_s17001.htc'
-    a.execute()
-
-    b = HAWC2SInputWriter()
-    b.vartrees = a.vartrees
-    b.execute()
