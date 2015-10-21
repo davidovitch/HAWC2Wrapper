@@ -316,19 +316,20 @@ class HAWC2InputReader(object):
             b.concentrated_mass = cm
         timo = section.get_entry('timoschenko_input')
         st_type = timo.get_entry('FPM')
-
+        b.body_set = timo.get_entry('set')
         if st_type is not None:
             stdic = read_hawc2_stKfull_file(timo.get_entry('filename'))
             b.st_input_type = st_type
         else:
-            stdic = read_hawc2_st_file(timo.get_entry('filename'))
+            stdic = read_hawc2_st_file(timo.get_entry('filename'), b.body_set[0])
             b.st_input_type = 0
+        b.body_set[0] = 1
+
         for stset in stdic:
             st = HAWC2BeamStructure()
             for k, w in stset.iteritems():
                 setattr(st, k, w)
-                b.beam_structure.append(st)
-        b.body_set = timo.get_entry('set')
+            b.beam_structure.append(st)
         c2def = section.get_entry('c2_def')
         b.c12axis = array(c2def.get_entry('sec'))[:, 1:5]
         return b

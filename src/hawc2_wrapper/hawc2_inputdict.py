@@ -171,7 +171,7 @@ class HAWC2InputDict(object):
             return False
 
 
-def read_hawc2_st_file(filename):
+def read_hawc2_st_file(filename, setnum=-1):
     """
     Reader for a HAWC2 beam structure file.
 
@@ -181,12 +181,12 @@ def read_hawc2_st_file(filename):
 
     Sub-classes can overwrite this function to change the reader's behaviour.
     """
+    right_set = False
     fid = open(filename, 'r')
     st_sets = []
     line = fid.readline()
     while line:
-        line = fid.readline()
-        if line.find('$') != -1:
+        if (line.find('$') != -1) and right_set:
             ni = int(line.split()[1])
             st_data = np.zeros((ni, 19))
             for i in range(ni):
@@ -214,11 +214,19 @@ def read_hawc2_st_file(filename):
             st['x_e'] = st_data[:, 17]
             st['y_e'] = st_data[:, 18]
             st_sets.append(st)
+
+        if line.find('#') != -1:
+            if (int(line[1:2]) == setnum) or setnum == -1:
+                right_set = True
+            else:
+                right_set = False
+        line = fid.readline()
+
     fid.close()
     return st_sets
 
 
-def read_hawc2_stKfull_file(filename):
+def read_hawc2_stKfull_file(filename, setnum=-1):
     """
     Reader for a HAWC2 beam structure file. Each sectional input is defined
     with 6X6 Constitutive Matrix.
@@ -238,13 +246,12 @@ def read_hawc2_stKfull_file(filename):
 
     Sub-classes can overwrite this function to change the reader's behaviour.
     """
-
+    right_set = False
     fid = open(filename, 'r')
     st_sets = []
     line = fid.readline()
     while line:
-        line = fid.readline()
-        if line.find('$') != -1:
+        if line.find('$') != -1 and right_set:
             ni = int(line.split()[1])
             st_data = np.zeros((ni, 30))
             for i in range(ni):
@@ -283,6 +290,13 @@ def read_hawc2_stKfull_file(filename):
             st['K_56'] = st_data[:, 28]
             st['K_66'] = st_data[:, 29]
             st_sets.append(st)
+        if line.find('#') != -1:
+            if (int(line[1:2]) == setnum) or setnum == -1:
+                right_set = True
+            else:
+                right_set = False
+        line = fid.readline()
+
     fid.close()
     return st_sets
 

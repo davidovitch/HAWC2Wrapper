@@ -60,7 +60,7 @@ def write_stfile(path, body, case_id):
                   'E', 'G', 'I_x', 'I_y', 'K', 'k_x', 'k_y', 'A', 'pitch',
                   'x_e', 'y_e']
         # for readable files with headers above the actual data column
-        exp_prec = 20             # exponential precesion
+        exp_prec = 15             # exponential precesion
         col_width = exp_prec + 8  # column width required for exp precision
         header_full = '='*20*col_width + '\n'
         header_full += ''.join([(hh + ' [%i]').center(col_width + 1) % i
@@ -74,7 +74,7 @@ def write_stfile(path, body, case_id):
                   'K_35', 'K_36', 'K_44', 'K_45', 'K_46', 'K_55', 'K_56',
                   'K_66']
         # for readable files with headers above the actual data column
-        exp_prec = 20             # exponential precesion
+        exp_prec = 15             # exponential precesion
         col_width = exp_prec + 8  # column width required for exp precision
         header_full = '='*32*col_width + '\n'
         header_full += ''.join([(hh + ' [%i]').center(col_width + 1) % i
