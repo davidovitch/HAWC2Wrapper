@@ -4,9 +4,7 @@ import numpy as np
 import os
 import glob
 import re
-import copy
-from openmdao.main.api import Component, Assembly
-from openmdao.lib.datatypes.api import List, Array, Str, VarTree, Bool, Float, Int
+
 from hawc2_vartrees import DTUBasicControllerVT
 from hawc2_wrapper.interpolations import sharp_curves_interpolation
 from scipy.interpolate import pchip
@@ -20,7 +18,7 @@ class HAWC2Dataset(object):
     """
 
     """
-
+    # TODO: link with pdap!!!!
     def __init__(self, casename=None, readonly=False):
 
         self.casename = casename
@@ -158,14 +156,13 @@ class HAWC2Dataset(object):
             return self.data[:, tuple(I1)]
 
 
-class HAWC2OutputBase(Component):
+class HAWC2OutputBase(object):
 
-    datasets = List(HAWC2Dataset,
-                    desc='List containing a series of HAWC2Datasets',
-                    iotype='out')
-    case_id = Str('hawc2_case', iotype='in')
-    res_directory = Str('', iotype='in')
-    OutputFlag = Bool(iotype='in')
+    def __init__(self):
+
+        self.datasets = HAWC2Dataset()
+        self.case_id = 'hawc2_case'
+        self.res_directory = ''
 
     def execute(self):
 
@@ -183,27 +180,25 @@ class HAWC2OutputBase(Component):
             self.datasets.append(case)
 
 
-class HAWC2SOutputBase(Component):
+class HAWC2SOutputBase(object):
 
-    blade_loads_data = List(desc='List of data from .ind files')
-    rotor_loads_data = Array(iotype='out')
-    operational_data = Array(iotype='out')
-    structuralfreqdamp = Array(iotype='out')
-    aeroelasticfreqdamp = Array(iotype='out')
-    aeroservoelasticfreqdamp = Array(iotype='out')
-    case_id = Str(iotype='in')
-    commands = List(iotype='in')
-    controller_data = VarTree(DTUBasicControllerVT(), iotype='out')
-#   h2sVar  = VarTree(HAWC2SVar(), iotype='in')
-    OutputFlag = Bool(iotype='in')
+    def __init__(self):
+
+        self.blade_loads_data = []
+        self.rotor_loads_data = np.array([0.])
+        self.operational_data = np.array([0.])
+        self.structuralfreqdamp = np.array([0.])
+        self.aeroelasticfreqdamp = np.array([0.])
+        self.aeroservoelasticfreqdamp = np.array([0.])
+        self.case_id = ''
+        self.commands = []
+        self.controller_data = DTUBasicControllerVT()
 
     def execute(self):
 
         self.blade_loads_data = []
         self.wsp_array = []
-        print self.commands
         for name in self.commands:
-            self._logger.info('Reading output for %s %i' % (name, name == 'compute_steady_states'))
             if name == 'compute_optimal_pitch_angle':
                 try:
                     data = np.loadtxt(self.case_id + '.opt', skiprows=1)
@@ -268,12 +263,7 @@ class HAWC2SOutputBase(Component):
 
             elif name == 'compute_stability_analysis':
 
-                try:
-                    data = np.loadtxt(self.case_id + '.cmb', skiprows=1)
-                    self._logger.info('stability_analysis file read with '
-                                      'success %s' % self.case_id + '.cmb')
-                except:
-                    data = np.zeros((1, 15))
+                data = np.loadtxt(self.case_id + '.cmb', skiprows=1)
                 if len(data.shape) == 1:
                     data = data.reshape(1, data.shape[0])
                 self.aeroelasticfreqdamp = data
@@ -281,43 +271,39 @@ class HAWC2SOutputBase(Component):
             elif name == 'compute_aeroservoelastic':
 
                 data = np.loadtxt(self.case_id + '_Servo.cmb', skiprows=1)
-                self._logger.info('compute_aeroservoelastic file read with'
-                                  ' success %s' % self.case_id + '.cmb')
 
                 if len(data.shape) == 1:
                     data = data.reshape(1, data.shape[0])
                 self.aeroservoelasticfreqdamp = data
 
             elif name == 'compute_controller_input':
-                try:
-                    fid = open('controller_input.txt', 'r')
-                    line = fid.readline()
-                    line = fid.readline()
-                    temp = line[line.find('K =')+4:line.rfind('[')]
-                    self.controller_data.Qg = float(temp.strip())
-                    line = fid.readline()
-                    line = fid.readline()
-                    line = fid.readline()
-                    temp = line[line.find('Kp =')+5:line.rfind('[')]
-                    self.controller_data.pgTorque = float(temp.strip())
-                    line = fid.readline()
-                    temp = line[line.find('Ki =')+5:line.rfind('[')]
-                    self.controller_data.igTorque = float(temp.strip())
-                    line = fid.readline()
-                    line = fid.readline()
-                    temp = line[line.find('Kp =')+5:line.rfind('[')]
-                    self.controller_data.pgPitch = float(temp.strip())
-                    line = fid.readline()
-                    temp = line[line.find('Ki =')+5:line.rfind('[')]
-                    self.controller_data.igPitch = float(temp.strip())
-                    line = fid.readline()
-                    temp = line[line.find('K1 =')+5:line.rfind('[deg]')]
-                    self.controller_data.KK1 = float(temp.strip())
-                    temp = line[line.find('K2 =')+5:line.rfind('[deg^2]')]
-                    self.controller_data.KK2 = float(temp.strip())
-                    fid.close()
-                except:
-                    pass
+                fid = open('controller_input.txt', 'r')
+                line = fid.readline()
+                line = fid.readline()
+                temp = line[line.find('K =')+4:line.rfind('[')]
+                self.controller_data.Qg = float(temp.strip())
+                line = fid.readline()
+                line = fid.readline()
+                line = fid.readline()
+                temp = line[line.find('Kp =')+5:line.rfind('[')]
+                self.controller_data.pgTorque = float(temp.strip())
+                line = fid.readline()
+                temp = line[line.find('Ki =')+5:line.rfind('[')]
+                self.controller_data.igTorque = float(temp.strip())
+                line = fid.readline()
+                line = fid.readline()
+                temp = line[line.find('Kp =')+5:line.rfind('[')]
+                self.controller_data.pgPitch = float(temp.strip())
+                line = fid.readline()
+                temp = line[line.find('Ki =')+5:line.rfind('[')]
+                self.controller_data.igPitch = float(temp.strip())
+                line = fid.readline()
+                temp = line[line.find('K1 =')+5:line.rfind('[deg]')]
+                self.controller_data.KK1 = float(temp.strip())
+                temp = line[line.find('K2 =')+5:line.rfind('[deg^2]')]
+                self.controller_data.KK2 = float(temp.strip())
+                fid.close()
+
             elif name == 'save_beam_data':
                 print 'not implemented yet'
             elif name == 'save_blade_geometry':
@@ -327,29 +313,17 @@ class HAWC2SOutputBase(Component):
             elif name == 'save_profile_coeffs':
                 print 'not implemented yet'
             elif name == 'compute_structural_modal_analysis':
-                try:
-                    fid = open(self.case_id + '_struc.cmb', 'r')
-                    # read first line
-                    fid.readline()
-                    data = np.loadtxt(fid)
-                except:
-                    data = np.ones((1, 21)) * 1.e3
+                fid = open(self.case_id + '_struc.cmb', 'r')
+                # read first line
+                fid.readline()
+                data = np.loadtxt(fid)
                 if len(data.shape) == 1:
                     data = data.reshape(1, data.shape[0])
                 self.structuralfreqdamp = data
                 fid.close()
             elif name == 'save_power':
                 # read pwr file
-                try:
-                    data = np.loadtxt(self.case_id+'.pwr', skiprows=1)
-                except:
-                    data = np.zeros((1, 15))
-                    # try to get the wind speed
-                    try:
-                        wsp = float(self.case_id.split('wsp_')[-1])
-                    except:
-                        wsp = 10.
-                    data[:, 0] = wsp
+                data = np.loadtxt(self.case_id+'.pwr', skiprows=1)
 
                 if len(data.shape) == 1:
                     data = data.reshape(1, data.shape[0])
@@ -370,34 +344,23 @@ class HAWC2SOutputBase(Component):
                 else:
                     self.blade_loads_data.append(np.zeros((30, 34)))
             else:
-                self._logger.info('Command "%s" not known.' % name)
-        self._logger.info('Done reading outputs.')
+                print 'Command "%s" not known.' % name
 
 
 class HAWC2SOutputIDO(HAWC2SOutputBase):
 
-    blade_loads = VarTree(DistributedLoadsArrayVT(),
-                          iotype='out', desc='Blade distributed loads')
-    blade_disps = VarTree(BeamDisplacementsArrayVT(),
-                          iotype='out', desc='Blade axis displacements')
-    rotor_loads = VarTree(RotorLoadsArrayVT(),
-                          iotype='out', desc='Rotor Loads')
-    hub_loads = VarTree(PointLoadArray(),
-                        iotype='out', desc='Hub Loads')
-    oper = VarTree(RotorOperationalDataArray(),
-                   iotype='out', desc='Operational data')
+    def __init__(self):
+        super(HAWC2SOutputIDO, self).__init__()
+        self.blade_loads = DistributedLoadsArrayVT()
+        self.blade_disps = BeamDisplacementsArrayVT()
+        self.rotor_loads = RotorLoadsArrayVT()
+        self.hub_loads = PointLoadArray()
+        self.oper = RotorOperationalDataArray()
 
-    blade_length = Float(86.366, iotype='in')
+        self.blade_length = 86.366
 
     def execute(self):
         super(HAWC2SOutputIDO, self).execute()
-
-        # hack to get around bug in OpenMDAO that causes
-        # the outputs to refer to the same object
-        self.blade_loads = copy.deepcopy(self.blade_loads)
-        self.blade_disps = copy.deepcopy(self.blade_disps)
-        self.rotor_loads = copy.deepcopy(self.rotor_loads)
-        self.oper = copy.deepcopy(self.oper)
 
         data = self.operational_data
 
@@ -464,15 +427,7 @@ class HAWC2SOutputIDO(HAWC2SOutputBase):
         self.hub_loads.Fy = np.asarray(Fy_array)
 
 
-# dirty fix to get around OpenMDAO bug
-from openmdao.main.api import VariableTree
-
-class FreqFac(VariableTree):
-
-    freq_factor = List()
-
-
-class FreqDampTargetByIndex(Component):
+class FreqDampTargetByIndex(object):
     """
     Component to compute th cost function for freqeuncies and dampings
     placement given the indexed of the modes
@@ -499,13 +454,13 @@ class FreqDampTargetByIndex(Component):
     --------
 
     """
+    def __init__(self):
+        self.freqdamp = np.array([0.])
+        self.mode_index = np.array([0.])
+        self.mode_target_freq = np.array([0.])
+        self.mode_target_damp = np.array([0.])
 
-    freqdamp = Array(iotype='in')
-    mode_index = Array(iotype='in')
-    mode_target_freq = Array(iotype='in')
-    mode_target_damp = Array(iotype='in')
-
-    freq_factor = VarTree(FreqFac(), iotype='out')
+        self.freq_factor = []
 
     def execute(self):
         """
@@ -540,7 +495,7 @@ class FreqDampTargetByIndex(Component):
         self.freq_factor.freq_factor = freq_factor
 
 
-class ModeTrackingByFreqDamp(Component):
+class ModeTrackingByFreqDamp(object):
     """
     Component to compute the indexes of modes for given frequencies and
     dampings
@@ -566,12 +521,12 @@ class ModeTrackingByFreqDamp(Component):
     --------
 
     """
+    def __init__(self):
+        self.freqdamp = np.array([0.])
+        self.mode_freq = np.array([0.])
+        self.mode_damp = np.array([0.])
 
-    freqdamp = Array(iotype='in')
-    mode_freq = Array(iotype='in')
-    mode_damp = Array(iotype='in')
-
-    mode_index = Array(iotype='out')
+        self.mode_index = np.array([0.])
 
     def execute(self):
         ws = self.mode_freq[:, 0]
@@ -580,7 +535,6 @@ class ModeTrackingByFreqDamp(Component):
         Nm = self.mode_freq.shape[1]
         self.mode_index = np.zeros([Nop, Nm])
         iop = -1
-        print self.freqdamp
         # Loop the operational points
         for freqdamp in self.freqdamp:
             # select right wind speed of reference values
@@ -598,18 +552,17 @@ class ModeTrackingByFreqDamp(Component):
                 # Loop the modes to be tracked
                 for freq, damp, im in zip(mode_freq, mode_damp, range(1, Nm)):
 
-                    err = np.sqrt(((allfreq - freq) / freq)**2
-                                  + ((alldamp - damp) / damp)**2)
+                    err = np.sqrt(((allfreq - freq) / freq)**2 +
+                                  ((alldamp - damp) / damp)**2)
                     if err[err.argmin()] > 1:
-                        self._logger.warning('Distance between computed mode '
-                                             'freqeuncies and dampings and '
-                                             'reference values for tracking is'
-                                             'high! %f' % err[err.argmin()])
+                        print 'Distance between computed mode freqeuncies ' +\
+                              'and dampings and reference values for ' +\
+                              'tracking is high! %f' % err[err.argmin()]
 
                     self.mode_index[iop, im] = err.argmin() + 1
 
 
-class FreqDampTarget(Assembly):
+class FreqDampTarget(object):
     """
     Component to compute th cost function for freqeuncies and dampings
     placement given the indexed of the modes
@@ -635,54 +588,52 @@ class FreqDampTarget(Assembly):
     --------
 
     """
-    freqdamp = Array(iotype='in')
-    mode_freq = Array(iotype='in')
-    mode_damp = Array(iotype='in')
-    mode_target_freq = Array(iotype='in')
-    mode_target_damp = Array(iotype='in')
+    def __init__(self):
+        self.freqdamp = np.array([0.])
+        self.mode_freq = np.array([0.])
+        self.mode_damp = np.array([0.])
+        self.mode_target_freq = np.array([0.])
+        self.mode_target_damp = np.array([0.])
+        self.freq_factor = []
 
     def configure(self):
 
-        self.add('modetrack', ModeTrackingByFreqDamp())
-        self.add('freqtarget', FreqDampTargetByIndex())
-        self.connect('mode_freq', 'modetrack.mode_freq')
-        self.connect('mode_damp', 'modetrack.mode_damp')
-        self.connect('mode_target_freq', 'freqtarget.mode_target_freq')
-        self.connect('mode_target_damp', 'freqtarget.mode_target_damp')
-        self.connect('freqdamp', 'modetrack.freqdamp')
-        self.connect('freqdamp', 'freqtarget.freqdamp')
-        self.connect('modetrack.mode_index', 'freqtarget.mode_index')
-        self.create_passthrough('freqtarget.freq_factor')
+        modetrack = ModeTrackingByFreqDamp()
+        modetrack.mode_freq = self.mode_freq
+        modetrack.mode_damp = self.mode_damp
+        modetrack.freqdamp = self.freqdamp
+        modetrack.execute()
 
-        self.driver.workflow.add(['modetrack', 'freqtarget'])
+        freqtarget = FreqDampTargetByIndex()
+        freqtarget.mode_target_freq = self.mode_target_freq
+        freqtarget.mode_target_damp = self.mode_target_damp
+        freqtarget.freqdamp = self.freqdamp
+        freqtarget.mode_index = modetrack.mode_index
+        freqtarget.execute()
+
+        self.freq_factor = freqtarget.freq_factor
 
 
-class H2SCIDPostProcess(Component):
+class H2SCIDPostProcess(object):
     """
     Component to gather the CID outputs from lists to the corresponding
     variabletree
     """
+    def __init__(self):
 
-    blade_loads_cid = List(iotype='in', desc='Blade distributed loads')
-    blade_disps_cid = List(iotype='in', desc='Blade axis displacements')
-    hub_loads_cid = List(iotype='in', desc='Hub Loads')
-    rotor_loads_cid = List(iotype='in', desc='Rotor Loads')
-    oper_cid = List(iotype='in', desc='Rotor Loads')
+        self.blade_loads_cid = []
+        self.blade_disps_cid = []
+        self.hub_loads_cid = []
+        self.rotor_loads_cid = []
+        self.oper_cid = []
+        self.freq_factor_cid = []
+        self.blade_loads = DistributedLoadsArrayVT()
+        self.blade_disps = BeamDisplacementsArrayVT()
+        self.rotor_loads = RotorLoadsArrayVT()
+        self.hub_loads = PointLoadArray()
+        self.oper = RotorOperationalDataArray()
 
-    freq_factor_cid = List(iotype='in')
-
-    blade_loads = VarTree(DistributedLoadsArrayVT(),
-                          iotype='out', desc='Blade distributed loads')
-    blade_disps = VarTree(BeamDisplacementsArrayVT(),
-                          iotype='out', desc='Blade axis displacements')
-    rotor_loads = VarTree(RotorLoadsArrayVT(),
-                          iotype='out', desc='Rotor Loads')
-    hub_loads = VarTree(PointLoadArray(),
-                          iotype='out', desc='Hub Loads')
-    oper = VarTree(RotorOperationalDataArray(),
-                          iotype='out', desc='Rotor operational data')
-
-    freq_factor = List(iotype='out')
+        self.freq_factor = []
 
     def execute(self):
 
@@ -723,7 +674,7 @@ class H2SCIDPostProcess(Component):
         self.blade_loads = DistributedLoadsArrayVT()
         for i, case in enumerate(self.blade_loads_cid):
             try:
-                self.blade_loads.add('load%i'%i, VarTree(case.loads_array[-1], iotype='out'))
+                self.blade_loads.add('load%i'%i, case.loads_array[-1])
                 self.blade_loads.loads_array.append('load%i'%i)
             except:
                 self._logger.warning('failed setting blade_loads.load%i' % i)
@@ -734,7 +685,7 @@ class H2SCIDPostProcess(Component):
         self.blade_disps = BeamDisplacementsArrayVT()
         for i, case in enumerate(self.blade_disps_cid):
             try:
-                self.blade_disps.add('disp%i'%i, VarTree(case.disps_array[-1], iotype='out'))
+                self.blade_disps.add('disp%i'%i, case.disps_array[-1])
                 tip_pos.append(case.disps_array[-1].main_axis[-1, :])
                 tip_rot.append(case.tip_rot[-1])
             except:
@@ -744,33 +695,25 @@ class H2SCIDPostProcess(Component):
         self.blade_disps.tip_rot = np.array(tip_rot)
 
 
-class H2SResInterp(Component):
+class H2SResInterp(object):
 
-    blade_loads = VarTree(DistributedLoadsArrayVT(),
-                          iotype='in', desc='Blade distributed loads')
-    blade_disps = VarTree(BeamDisplacementsArrayVT(),
-                          iotype='in', desc='Blade axis displacements')
-    rotor_loads = VarTree(RotorLoadsArrayVT(),
-                          iotype='in', desc='Rotor Loads')
-    hub_loads = VarTree(PointLoadArray(),
-                        iotype='in', desc='Hub Loads')
-    oper = VarTree(RotorOperationalDataArray(),
-                   iotype='in', desc='Operational data')
+    def __init__(self):
 
-    blade_loads_i = VarTree(DistributedLoadsArrayVT(),
-                            iotype='out', desc='Blade distributed loads')
-    blade_disps_i = VarTree(BeamDisplacementsArrayVT(),
-                            iotype='out', desc='Blade axis displacements')
-    rotor_loads_i = VarTree(RotorLoadsArrayVT(),
-                            iotype='out', desc='Rotor Loads')
-    hub_loads_i = VarTree(PointLoadArray(),
-                          iotype='out', desc='Hub Loads')
-    oper_i = VarTree(RotorOperationalDataArray(),
-                     iotype='out', desc='Operational data')
+        self.blade_loads = DistributedLoadsArrayVT()
+        self.blade_disps = BeamDisplacementsArrayVT()
+        self.rotor_loads = RotorLoadsArrayVT()
+        self.hub_loads = PointLoadArray()
+        self.oper = RotorOperationalDataArray()
 
-    N = Int(50, iotype='in', desc='New number of points for the wind speed')
+        self.blade_loads_i = DistributedLoadsArrayVT()
+        self.blade_disps_i = BeamDisplacementsArrayVT()
+        self.rotor_loads_i = RotorLoadsArrayVT()
+        self.hub_loads_i = PointLoadArray()
+        self.oper_i = RotorOperationalDataArray()
 
-    cutout_ws = Float(25, iotype='in')
+        self.N = 50
+
+        self.cutout_ws = 25.
 
     def execute(self):
 
@@ -899,7 +842,7 @@ from fusedwind.turbine.structure_vt import BeamStructureVT
 from fusedwind.turbine.geometry_vt import BladePlanformVT
 
 
-class ComputeLoads(Component):
+class ComputeLoads(object):
     """
     Compute extreme loads based on steady state HAWC2S simulations
 
@@ -908,22 +851,21 @@ class ComputeLoads(Component):
     Likewise, the blade loads do not include centrifugal forces, also added manually.
     todo: calculate torsional moment
     """
-    oper = VarTree(RotorOperationalDataArray(),
-                     iotype='in', desc='Operational data')
-    beam_structure = VarTree(BeamStructureVT(), iotype='in')
-    pf = VarTree(BladePlanformVT(), iotype='in')
-    blade_loads = VarTree(DistributedLoadsArrayVT(),
-                      iotype='in', desc='Blade distributed loads')
-    factor = Float(1.35, iotype='in')
-    g = Float(9.81, iotype='in')
-    hub_radius = Float(iotype='in')
-    x = Array(iotype='in')
+    def __init__(self):
 
-    lc = List(LoadVectorCaseList, iotype='out', desc='List of 2D cases interpolated onto s')
+        self.oper = RotorOperationalDataArray()
+        self.beam_structure = BeamStructureVT()
+        self.pf = BladePlanformVT()
+        self.blade_loads = DistributedLoadsArrayVT()
+        self.factor = 1.35
+        self.g = 9.81
+        self.hub_radius = np.array([0.0])
+        self.x = np.array([0.0])
+
+        self.lc = LoadVectorCaseList
 
     def execute(self):
 
-        
         self.lcs = []
         self.lc = []
         for j, lname in enumerate(self.blade_loads.loads_array):
@@ -959,7 +901,7 @@ class ComputeLoads(Component):
                 factor = 1.35
             else:
                 factor = 1.1
-            
+
             for i in range(load.s.shape[0]):
                 lc.Fx[i] = (np.trapz(Fx[i:] + Fxmass[i:], r[i:])) * factor
                 lc.Fy[i] = (np.trapz(Fy[i:] + Fymass[i:], r[i:])) * factor

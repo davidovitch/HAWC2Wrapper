@@ -1122,4 +1122,3 @@ class HAWC2SInputWriter(HAWC2InputWriter):
 
         opt = ['  ' + o + ';' for o in opt]
         self.h2s.extend(opt)
-
