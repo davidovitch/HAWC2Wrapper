@@ -12,27 +12,6 @@ from scipy.interpolate import pchip
 from numpy import array, loadtxt
 
 
-def stfile2beamvt(filename):
-    """read HAWC2 st file and return list of BeamStructureVT's"""
-
-    from fusedwind.turbine.structure_vt import BeamStructureVT  # FIXME:
-    sts = []
-    stdic = read_hawc2_st_file(filename)
-    for stset in stdic:
-        st = BeamStructureVT()
-        for k, w in stset.iteritems():
-            fused_name = k
-            if k == 'K':
-                fused_name = 'G'
-            try:
-                setattr(st, fused_name, w)
-            except:
-                print 'key error', k
-        sts.append(st)
-
-    return sts
-
-
 class HAWC2InputReader(object):
     """
     Class to read HAWC2 files and store the data in variables trees.
@@ -60,21 +39,21 @@ class HAWC2InputReader(object):
 
         for section in self.htc:
             if section.name == 'simulation':
-                self.add_simulation(section)
+                self._add_simulation(section)
             elif section.name == 'wind':
-                self.add_wind(section)
+                self._add_wind(section)
             elif section.name == 'aero':
-                self.add_aero(section)
+                self._add_aero(section)
             elif section.name == 'aerodrag':
-                self.add_aerodrag(section)
+                self._add_aerodrag(section)
             elif section.name == 'new_htc_structure':
-                self.add_structure(section)
+                self._add_structure(section)
             elif section.name == 'output':
-                self.add_output(section)
+                self._add_output(section)
             elif section.name == 'dll':
-                self.add_dlls(section)
+                self._add_dlls(section)
             elif section.name == 'hawcstab2':
-                self.add_hawcstab2(section)
+                self._add_hawcstab2(section)
 
         # count number of blades
         for iblade in range(1, 10):
@@ -113,7 +92,52 @@ class HAWC2InputReader(object):
 
         return vt
 
-    def add_simulation(self, section):
+    def read_operational_data_file(self):
+
+        data = loadtxt(self.vartrees.h2s.operational_data_filename, skiprows=1)
+        if len(data.shape) == 1:
+            data = data.reshape([1, data.shape[0]])
+        self.vartrees.h2s.wsp_curve = data[:, 0]
+        self.vartrees.h2s.pitch_curve = data[:, 1]
+        self.vartrees.h2s.rpm_curve = data[:, 2]
+
+    def add_pc_data(self):
+
+        pcdata = read_hawc2_pc_file(self.vartrees.aero.pc_filename)
+
+        desc = pcdata[0]
+        data = pcdata[1]
+
+        self.vartrees.airfoildata.nset = len(data)
+        self.vartrees.airfoildata.desc = desc
+
+        for dataset in data:
+            pcset = HAWC2AirfoilDataset()
+            pcset.np = len(dataset['polars'])
+            rthick = []
+            for p in dataset['polars']:
+                polar = HAWC2AirfoilPolar()
+                polar.rthick = p['rthick']
+                polar.desc = p['desc']
+                polar.aoa = p['aoa']
+                polar.cl = p['cl']
+                polar.cd = p['cd']
+                polar.cm = p['cm']
+                rthick.append(polar.rthick)
+                pcset.polars.append(polar)
+            pcset.rthick = rthick
+            self.vartrees.airfoildata.pc_sets.append(pcset)
+
+    def add_ae_data(self):
+
+        blade_ae = read_hawc2_ae_file(self.vartrees.aero.ae_filename)
+
+        self.vartrees.blade_ae.s = blade_ae['s']
+        self.vartrees.blade_ae.chord = blade_ae['chord']
+        self.vartrees.blade_ae.rthick = blade_ae['rthick']
+        self.vartrees.blade_ae.aeset = blade_ae['aeset']
+
+    def _add_simulation(self, section):
 
         vt = HAWC2Simulation()
         vt = self.set_entry(vt, section, 'time_stop')
@@ -128,7 +152,7 @@ class HAWC2InputReader(object):
 
         self.vartrees.sim = vt
 
-    def add_wind(self, section):
+    def _add_wind(self, section):
 
         vt = HAWC2Wind()
         vt = self.set_entry(vt, section, 'density')
@@ -203,7 +227,7 @@ class HAWC2InputReader(object):
 
         self.vartrees.wind = vt
 
-    def add_aero(self, section):
+    def _add_aero(self, section):
 
         vt = HAWC2Aero()
         vt = self.set_entry(vt, section, 'nblades')
@@ -234,43 +258,7 @@ class HAWC2InputReader(object):
         self.add_pc_data()
         self.add_ae_data()
 
-    def add_pc_data(self):
-
-        pcdata = read_hawc2_pc_file(self.vartrees.aero.pc_filename)
-
-        desc = pcdata[0]
-        data = pcdata[1]
-
-        self.vartrees.airfoildata.nset = len(data)
-        self.vartrees.airfoildata.desc = desc
-
-        for dataset in data:
-            pcset = HAWC2AirfoilDataset()
-            pcset.np = len(dataset['polars'])
-            rthick = []
-            for p in dataset['polars']:
-                polar = HAWC2AirfoilPolar()
-                polar.rthick = p['rthick']
-                polar.desc = p['desc']
-                polar.aoa = p['aoa']
-                polar.cl = p['cl']
-                polar.cd = p['cd']
-                polar.cm = p['cm']
-                rthick.append(polar.rthick)
-                pcset.polars.append(polar)
-            pcset.rthick = rthick
-            self.vartrees.airfoildata.pc_sets.append(pcset)
-
-    def add_ae_data(self):
-
-        blade_ae = read_hawc2_ae_file(self.vartrees.aero.ae_filename)
-
-        self.vartrees.blade_ae.s = blade_ae['s']
-        self.vartrees.blade_ae.chord = blade_ae['chord']
-        self.vartrees.blade_ae.rthick = blade_ae['rthick']
-        self.vartrees.blade_ae.aeset = blade_ae['aeset']
-
-    def add_aerodrag(self, section):
+    def _add_aerodrag(self, section):
 
         vt = HAWC2AeroDrag()
         for entry in section.entries:
@@ -285,20 +273,20 @@ class HAWC2InputReader(object):
 
         self.vartrees.aerodrag = vt
 
-    def add_structure(self, section):
+    def _add_structure(self, section):
 
         for sec in section.entries:
             if sec.name == 'main_body':
-                b = self.add_main_body(sec)
+                b = self._add_main_body(sec)
                 self.vartrees.main_bodies.add_main_body(b.body_name, b)
 
             elif sec.name == 'orientation':
-                self.add_orientations(sec)
+                self._add_orientations(sec)
 
             elif sec.name == 'constraint':
-                self.add_constraints(sec)
+                self._add_constraints(sec)
 
-    def add_main_body(self, section):
+    def _add_main_body(self, section):
 
         b = HAWC2MainBody()
         b = self.set_entry(b, section, 'body_name', h2name='name',
@@ -346,7 +334,7 @@ class HAWC2InputReader(object):
         b.c12axis = array(c2def.get_entry('sec'))[:, 1:5]
         return b
 
-    def add_orientations(self, section):
+    def _add_orientations(self, section):
 
         for sec in section.entries:
             if sec.name == 'base':
@@ -387,7 +375,7 @@ class HAWC2InputReader(object):
                 o = self.set_entry(o, sec, 'initial_speed')
                 o = self.set_entry(o, sec, 'rotation_dof')
 
-    def add_constraints(self, section):
+    def _add_constraints(self, section):
 
         for sec in section.entries:
             if sec.name in ['fix0', 'fix2', 'fix3']:
@@ -447,18 +435,18 @@ class HAWC2InputReader(object):
                 else:
                     c = self.set_entry(c, sec, 'disable_at')
 
-    def add_dlls(self, section):
+    def _add_dlls(self, section):
 
         for sec in section.entries:
             if sec.name == 'type2_dll':
-                dll = self.add_type2_dll(sec)
+                dll = self._add_type2_dll(sec)
                 self.vartrees.dlls.add_dll(dll.name, dll)
                 self.vartrees.dlls_order.append(dll.name)
             elif sec.name == 'hawc_dll':
                 raise NotImplemented('%s: hawc_dll type not implemented, \
                                      use type2 dlls' % sec.get_entry('name'))
 
-    def add_type2_dll(self, sec):
+    def _add_type2_dll(self, sec):
 
         dll = HAWC2Type2DLL()
         dll = self.set_entry(dll, sec, 'name', required=True)
@@ -481,7 +469,7 @@ class HAWC2InputReader(object):
             dll.actions.set_actions(io)
         return dll
 
-    def add_output(self, section):
+    def _add_output(self, section):
 
         o = HAWC2OutputVT()
         o = self.set_entry(o, section, 'filename', required=True)
@@ -493,22 +481,22 @@ class HAWC2InputReader(object):
         o.set_outputs(section.entries)
         self.vartrees.output = o
 
-    def add_hawcstab2(self, section):
+    def _add_hawcstab2(self, section):
 
         dll = HAWC2Type2DLL()
         dll.set_init('risoe_controller')
         self.vartrees.dlls.add_dll('risoe_controller', dll)
         for sec in section.entries:
             if sec.name == 'ground_fixed_substructure':
-                self.vartrees.h2s.ground_fixed = self.add_hawc2s_body(sec)
+                self.vartrees.h2s.ground_fixed = self._add_hawc2s_body(sec)
 
             elif sec.name == 'rotating_axissym_substructure':
                 self.vartrees.h2s.rotating_axissym =\
-                    self.add_hawc2s_body(sec)
+                    self._add_hawc2s_body(sec)
 
             elif sec.name == 'rotating_threebladed_substructure':
                 self.vartrees.h2s.rotating_threebladed =\
-                    self.add_hawc2s_body(sec)
+                    self._add_hawc2s_body(sec)
                 try:
                     b = sec.get_entry('second_order_actuator')
                     self.vartrees.h2s.second_order_actuator.name = b[0]
@@ -518,13 +506,13 @@ class HAWC2InputReader(object):
                     pass
 
             elif sec.name == 'operational_data':
-                self.add_operational_data(sec)
+                self._add_operational_data(sec)
 
             elif sec.name == 'controller_tuning':
-                self.add_controller_tuning(sec)
+                self._add_controller_tuning(sec)
 
             elif sec.name == 'controller':
-                self.add_controller(sec)
+                self._add_controller(sec)
 
             elif sec.name == 'print_full_precision':
                 self.vartrees.h2s.commands.append('print_full_precision')
@@ -659,14 +647,14 @@ class HAWC2InputReader(object):
         if 'compute_optimal_pitch_angle' not in self.vartrees.h2s.commands:
             self.read_operational_data_file()
 
-    def add_hawc2s_body(self, section):
+    def _add_hawc2s_body(self, section):
 
         b = HAWC2SBody()
         b = self.set_entry(b, section, 'main_body')
         b = self.set_entry(b, section, 'log_decrements')
         return b
 
-    def add_operational_data(self, section):
+    def _add_operational_data(self, section):
 
         c = section.get_entry('windspeed')
         self.vartrees.dlls.risoe_controller.dll_init.Vin = c[0]
@@ -704,16 +692,7 @@ class HAWC2InputReader(object):
             self.set_entry(self.vartrees.h2s.options,
                            section, 'remove_torque_limits')
 
-    def read_operational_data_file(self):
-
-        data = loadtxt(self.vartrees.h2s.operational_data_filename, skiprows=1)
-        if len(data.shape) == 1:
-            data = data.reshape([1, data.shape[0]])
-        self.vartrees.h2s.wsp_curve = data[:, 0]
-        self.vartrees.h2s.pitch_curve = data[:, 1]
-        self.vartrees.h2s.rpm_curve = data[:, 2]
-
-    def add_controller_tuning(self, section):
+    def _add_controller_tuning(self, section):
 
         c = section.get_entry('partial_load')
         self.vartrees.dlls.risoe_controller.dll_init.poleFreqTorque = c[0]
@@ -738,7 +717,7 @@ class HAWC2InputReader(object):
             self.set_entry(self.vartrees.h2s.options,
                            section, 'regions', h2name='regions')
 
-    def add_controller(self, section):
+    def _add_controller(self, section):
 
         o = HAWC2OutputVT()
         i = section.get_entry('input')
@@ -752,7 +731,5 @@ class HAWC2InputReader(object):
 
 if __name__ == '__main__':
 
-    a = HAWC2InputReader()
-    a.htc_master_file = '.\main_h2.htc'
-    a.execute()
+    pass
 

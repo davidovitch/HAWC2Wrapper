@@ -6,12 +6,6 @@ import glob
 import re
 
 from hawc2_vartrees import DTUBasicControllerVT
-from hawc2_wrapper.interpolations import sharp_curves_interpolation
-from scipy.interpolate import pchip
-
-from fusedwind.turbine.rotoraero_vt import RotorLoadsArrayVT, DistributedLoadsExtVT,\
-    DistributedLoadsArrayVT, BeamDisplacementsVT, BeamDisplacementsArrayVT,\
-    PointLoad, PointLoadArray, RotorOperationalDataArray
 
 
 class HAWC2Dataset(object):
@@ -181,76 +175,60 @@ class HAWC2OutputBase(object):
 
 
 class HAWC2SOutputBase(object):
+    """
+    HAWC2SOutputBase: class that reads HAWC2s output files.
 
+    parameters
+    ----------
+    case_id: str
+        Name of solution to open.
+    commands: list
+        List containing the strings of the HAWC2s commands that have been
+        executed. Only files associated with these commands are read.
+
+    returns
+    -------
+    operational_data: list
+        List containing results included in the .opt file.
+
+    rotor_loads_data: list
+        List containing the results included in the .pwr file.
+
+    blade_loads_data: list
+        List containing the results included in all the .ind files.
+
+    structuralfreqdamp: list
+        List containing the structural frequencies and damping ratios.
+
+    aeroelasticfreqdamp: list
+        List containing the aeroelastic frequencies and damping ratios.
+
+    aeroservoelasticfreqdamp: list
+        List containing the aeroservoelastic frequencies and damping ratios.
+
+    controller_data: DTUBasicControllerVT
+        Variable tree containing the controller tuning inputs.
+
+    """
     def __init__(self):
-
-        self.blade_loads_data = []
-        self.rotor_loads_data = np.array([0.])
-        self.operational_data = np.array([0.])
+        self.case_id = ''
+        self.commands = []
         self.structuralfreqdamp = np.array([0.])
         self.aeroelasticfreqdamp = np.array([0.])
         self.aeroservoelasticfreqdamp = np.array([0.])
-        self.case_id = ''
-        self.commands = []
         self.controller_data = DTUBasicControllerVT()
 
     def execute(self):
 
-        self.blade_loads_data = []
-        self.wsp_array = []
         for name in self.commands:
             if name == 'compute_optimal_pitch_angle':
-                try:
-                    data = np.loadtxt(self.case_id + '.opt', skiprows=1)
-                    if len(data.shape) == 1:
-                        data = data.reshape(1, data.shape[0])
-                    self.operational_data = data[:, :3]
-                except:
-                    self.operational_data = np.zeros((1, 5))
-                    try:
-                        wsp = float(self.case_id.split('wsp_')[-1])
-                    except:
-                        wsp = 10.
-                    self.operational_data[:, 0] = wsp
 
-            elif name == 'compute_steady_states':
-                # To read the opt file even when they are not computed
-                # We do it in 'compute_steadystate' because this command
-                # requires the opt file, so it should be there!
-                if 'compute_optimal_pitch_angle' not in self.commands:
-                    data = np.loadtxt(self.case_id + '.opt', skiprows=1)
-                    # read first line
-                    if len(data.shape) == 1:
-                        data = data.reshape(1, data.shape[0])
-                    self.operational_data = data[:, :3]
-            elif name == 'compute_steadystate':
-                # read pwr file
-                try:
-                    data = np.loadtxt(self.case_id+'.pwr', skiprows=1)
-                except:
-                    data = np.zeros((1, 15))
-                    # try to get the wind speed
-                    try:
-                        wsp = float(self.case_id.split('wsp_')[-1])
-                    except:
-                        wsp = 10.
-                    data[:, 0] = wsp
-
+                data = np.loadtxt(self.case_id + '.opt', skiprows=1)
                 if len(data.shape) == 1:
                     data = data.reshape(1, data.shape[0])
-                self.rotor_loads_data = data.copy()
+                self.operational_data = data[:, :3]
 
-                wsp_files = glob.glob(self.case_id+'_u*.ind')
-                for f in wsp_files:
-                    w = float(re.sub("\%s"%self.case_id+'_u','',f).strip('.ind'))/1000.
-                    self.wsp_array.append(w)
-                self.wsp_array.sort()
-
-                for wsp in self.wsp_array:
-                    filename = self.case_id + '_u'+str(int(wsp*1000)) + '.ind'
-                    data = np.loadtxt(filename)
-                    self.blade_loads_data.append(data)
-
+            elif name == 'compute_steady_states':
                 # To read the opt file even when they are not computed
                 # We do it in 'compute_steadystate' because this command
                 # requires the opt file, so it should be there!
@@ -306,21 +284,21 @@ class HAWC2SOutputBase(object):
 
             elif name == 'save_beam_data':
                 print 'not implemented yet'
+
             elif name == 'save_blade_geometry':
                 print 'not implemented yet'
+
             elif name == 'save_aero_point_data':
                 print 'not implemented yet'
+
             elif name == 'save_profile_coeffs':
                 print 'not implemented yet'
+
             elif name == 'compute_structural_modal_analysis':
-                fid = open(self.case_id + '_struc.cmb', 'r')
-                # read first line
-                fid.readline()
-                data = np.loadtxt(fid)
+                data = np.loadtxt(self.case_id + '_struc.cmb', skiprows=1)
                 if len(data.shape) == 1:
                     data = data.reshape(1, data.shape[0])
                 self.structuralfreqdamp = data
-                fid.close()
             elif name == 'save_power':
                 # read pwr file
                 data = np.loadtxt(self.case_id+'.pwr', skiprows=1)
@@ -330,15 +308,19 @@ class HAWC2SOutputBase(object):
                 self.rotor_loads_data = data.copy()
 
             elif name == 'save_induction':
+                self.blade_loads_data = []
+                wsp_array = []
                 wsp_files = glob.glob(self.case_id+'_u*.ind')
                 if len(wsp_files) > 0:
                     for f in wsp_files:
-                         w = float(re.sub("\%s"%self.case_id+'_u','',f).strip('.ind'))/1000.
-                         self.wsp_array.append(w)
-                    self.wsp_array.sort()
+                        w = float(re.sub('\%s' % self.case_id + '_u',
+                                         '', f).strip('.ind'))/1000.
+                        wsp_array.append(w)
+                    wsp_array.sort()
 
-                    for wsp in self.wsp_array:
-                        filename = self.case_id + '_u'+str(int(wsp*1000)) + '.ind'
+                    for wsp in wsp_array:
+                        filename = self.case_id + '_u' + \
+                                   str(int(wsp*1000)) + '.ind'
                         data = np.loadtxt(filename)
                         self.blade_loads_data.append(data)
                 else:
@@ -347,84 +329,152 @@ class HAWC2SOutputBase(object):
                 print 'Command "%s" not known.' % name
 
 
-class HAWC2SOutputIDO(HAWC2SOutputBase):
+class HAWC2SOutput(HAWC2SOutputBase):
+    """
+    HAWC2SOutput: HAWC2SOutputBase class that organize results in more general
+    arrays.
 
+    parameters
+    ----------
+
+    returns
+    -------
+    wsp : array
+        Wind speed [m/s].
+    pitch : array
+        Pitch angle [deg].
+    rpm : array
+        Rotational speed [rpm].
+    P : array
+        Aerodynamic power [W].
+    Q : array
+        Aerodynamic torque [Nm].
+    T : array
+        Thrust [N].
+    CP : array
+        Power coefficient [-].
+    CT : array
+        Thrust coefficient [-].
+    Mx : array
+        Blade root in-plane bending moment [Nm].
+    My : array
+        Blade root out-of-plane bending moment [Nm].
+    Mz : array
+        Blade root torsional moment [Nm].
+    tip_pos : array
+        Blade tip position [m].
+    tip_rot : array
+        Blade tip rotation [deg].
+    disp_x : array
+        In plane blade deflection [m].
+    disp_y : array
+        Out of plane blade deflection [m].
+    disp_z : array
+        Blade deflection along the blade axis [m].
+    disp_rot_z : array
+        Blade sections rotation [deg].
+    s: array
+        Position of radial sections [-].
+    aoa : array [nW, nS]
+        Sections angle of attack  [deg].
+    Ft : array
+        Sections tangential force [N].
+    Fn : array [nW, nS]
+        Sections normal force  [N].
+    cl : array [nW, nS]
+        Lift coefficients [-].
+    cd : array [nW, nS]
+        Drag coefficient [-].
+    cm : array [nW, nS]
+        Moment coefficient [-].
+    ct : array [nW, nS]
+        Thrust coefficient [-].
+    cp : array [nW, nS]
+        Power coefficient [-].
+    v_a : array [nW, nS]
+        Axial induced velocity [m/s].
+    v_t : array [nW, nS]
+        Tangential induced velocity [m/s].
+    Fx : array
+        Integrated lateral force [N].
+    Fy : array
+        Intagrated longitudinal force [N].
+    """
     def __init__(self):
-        super(HAWC2SOutputIDO, self).__init__()
-        self.blade_loads = DistributedLoadsArrayVT()
-        self.blade_disps = BeamDisplacementsArrayVT()
-        self.rotor_loads = RotorLoadsArrayVT()
-        self.hub_loads = PointLoadArray()
-        self.oper = RotorOperationalDataArray()
-
-        self.blade_length = 86.366
+        super(HAWC2SOutput, self).__init__()
 
     def execute(self):
-        super(HAWC2SOutputIDO, self).execute()
+        if ('save_power' not in self.commands) or \
+           ('save_induction' not in self.commands):
+            raise RuntimeError('HAWC2SOutput can only run if pwr and ind ' +
+                               ' files have been computed.')
+        super(HAWC2SOutput, self).execute()
 
-        data = self.operational_data
+        data = np.array(self.operational_data)
 
-        self.oper.wsp = data[:, 0]
-        self.oper.pitch = data[:, 1]
-        self.oper.rpm = data[:, 2]
+        self.wsp = data[:, 0]
+        self.pitch = data[:, 1]
+        self.rpm = data[:, 2]
 
-        data = self.rotor_loads_data
-        if data.shape[0] == 0:
-            return
+        data = np.array(self.rotor_loads_data)
+        self.P = data[:, 1] * 1000.
+        self.Q = data[:, 1] * 1000. / (data[:, 9] * 2. * np.pi / 60.)
+        self.T = data[:, 2] * 1000.
+        self.CP = data[:, 3]
+        self.CT = data[:, 4]
+        self.Mx = data[:, 6] * 1000.
+        self.My = data[:, 7] * 1000.
+        self.Mz = data[:, 5]
 
-        self.rotor_loads.wsp = data[:, 0]
+        nW = len(self.wsp)
+        nS = len(self.blade_loads_data[0][:, 0])
 
-        # keeping this for now so I don't break any code relying on this output
-        self.rotor_loads.rpm = data[:, 9]
-        self.rotor_loads.pitch = data[:, 8]
+        self.tip_pos = np.zeros((nW, 3))
+        self.tip_rot = np.zeros(nW)
+        self.disp_x = np.zeros((nW, nS))
+        self.disp_y = np.zeros((nW, nS))
+        self.disp_z = np.zeros((nW, nS))
+        self.disp_rot_z = np.zeros((nW, nS))
+        self.aoa = np.zeros((nW, nS))
+        self.Ft = np.zeros((nW, nS))
+        self.Fn = np.zeros((nW, nS))
+        self.cl = np.zeros((nW, nS))
+        self.cd = np.zeros((nW, nS))
+        self.cm = np.zeros((nW, nS))
+        self.ct = np.zeros((nW, nS))
+        self.cp = np.zeros((nW, nS))
+        self.v_a = np.zeros((nW, nS))
+        self.v_t = np.zeros((nW, nS))
 
-        self.rotor_loads.P = data[:, 1] * 1000.
-        self.rotor_loads.Q = data[:, 1] * 1000. / (data[:, 9] * 2. * np.pi / 60.)
-        self.rotor_loads.T = data[:, 2] * 1000.
-        self.rotor_loads.CP = data[:, 3]
-        self.rotor_loads.CT = data[:, 4]
-        self.hub_loads.Mx = data[:, 6] * 1000.
-        self.hub_loads.My = data[:, 7] * 1000.
-        self.hub_loads.Mz = data[:, 5]
+        self.Fx = np.zeros(nW)
+        self.Fy = np.zeros(nW)
 
-        self.blade_disps.tip_pos = np.zeros((self.rotor_loads.wsp.shape[0], 3))
-        self.blade_disps.tip_rot = np.zeros(self.rotor_loads.wsp.shape[0])
-        self.blade_loads.loads_array = []
-        self.blade_disps.disps_array = []
-        Fx_array = []
-        Fy_array = []
-        for i, wsp in enumerate(self.rotor_loads.wsp):
-            data = self.blade_loads_data[i]
+        for iw, wsp in enumerate(self.wsp):
+            data = self.blade_loads_data[iw]
             if len(data.shape) == 1:
                 data = data.reshape(1, data.shape[0])
-            loads = DistributedLoadsExtVT()
-            disps = BeamDisplacementsVT()
-            loads.s = data[:, 0] / self.blade_length
-            loads.aoa = data[:, 4] * 180. / np.pi
-            loads.Ft = data[:, 6]
-            loads.Fn = data[:, 7]
-            loads.cl = data[:, 16]
-            loads.cd = data[:, 17]
-            loads.cm = data[:, 18]
-            loads.ct = data[:, 32]
-            loads.cp = data[:, 33]
-            loads.v_a = data[:, 26]
-            loads.v_t = data[:, 27]
-            Fx_array.append(np.trapz(data[:, 6], x=data[:, 0]))
-            Fy_array.append(np.trapz(data[:, 7], x=data[:, 0]))
-            disps.main_axis = data[:, 13:16]
-            disps.main_axis[:, 2] *= -1.
-            disps.x = disps.main_axis[:, 0]
-            disps.y = disps.main_axis[:, 1]
-            disps.z = disps.main_axis[:, 2]
-            disps.rot_z = data[:, 28] * 180. / np.pi
-            self.blade_loads.loads_array.append(loads)
-
-            self.blade_disps.disps_array.append(disps)
-            self.blade_disps.tip_pos[i, :] = disps.main_axis[-1, :]
-            self.blade_disps.tip_rot[i] = np.interp(0.98, loads.s, data[:, 28] * 180. / np.pi)
-        self.hub_loads.Fx = np.asarray(Fx_array)
-        self.hub_loads.Fy = np.asarray(Fy_array)
+            self.s = data[:, 0] / data[-1, 0]
+            self.aoa[iw, :] = data[:, 4] * 180. / np.pi
+            self.Ft[iw, :] = data[:, 6]
+            self.Fn[iw, :] = data[:, 7]
+            self.cl[iw, :] = data[:, 16]
+            self.cd[iw, :] = data[:, 17]
+            self.cm[iw, :] = data[:, 18]
+            self.ct[iw, :] = data[:, 32]
+            self.cp[iw, :] = data[:, 33]
+            self.v_a[iw, :] = data[:, 26]
+            self.v_t[iw, :] = data[:, 27]
+            self.Fx[iw] = np.trapz(data[:, 6], x=data[:, 0])
+            self.Fy[iw] = np.trapz(data[:, 7], x=data[:, 0])
+            main_axis = data[:, 13:16]
+            main_axis[:, 2] *= -1.
+            self.disp_x[iw, :] = main_axis[:, 0]
+            self.disp_y[iw, :] = main_axis[:, 1]
+            self.disp_z[iw, :] = main_axis[:, 2]
+            self.disp_rot_z[iw, :] = data[:, 28] * 180. / np.pi
+            self.tip_pos[iw, :] = main_axis[-1, :]
+            self.tip_rot[iw] = np.interp(0.98,
+                                         self.s, data[:, 28] * 180. / np.pi)
 
 
 class FreqDampTargetByIndex(object):
@@ -442,10 +492,13 @@ class FreqDampTargetByIndex(object):
         Two dimensional array containing the indexed of the freqeuncies and
         dampings to be placed at different operational points.
 
-    mode_target: array
+    mode_target_freq: array
         Two dimenstional array containing the target values of the freqeuncies
-        and dampings at operational points. Has to be of the same size as
-        mode_index.
+        at operational points. Has to be of the same size as mode_index.
+
+    mode_target_damp: array
+        Two dimenstional array containing the target values of the dampings at
+        operational points. Has to be of the same size as mode_index.
 
     freq_factor: list
         RMS of the errors
@@ -482,13 +535,13 @@ class FreqDampTargetByIndex(object):
 
                         if target_freq != -1:
                             freq_factor.append(abs(freqdamp[index] /
-                                                     target_freq - 1))
+                                                   target_freq - 1))
                             print 'Freq: ', freqdamp[index],\
                                   'Target Freq: ', target_freq,\
                                   'Diff.:', freq_factor[-1]
                         if target_damp != -1:
                             freq_factor.append(abs(freqdamp[index+Nmodes] /
-                                                     target_damp - 1))
+                                                   target_damp - 1))
                             print 'Damp: ', freqdamp[index+Nmodes],\
                                   'Target Damp:', target_damp,\
                                   'Diff.:', freq_factor[-1]
@@ -581,7 +634,9 @@ class FreqDampTarget(object):
         Two dimenstional array containing the target values of the dampings at
         operational points. Has to be of the same size as mode_freq.
 
-    freq_factor: float
+    results
+    -------
+    freq_factor: array
         RMS of the errors
 
     example
@@ -596,7 +651,7 @@ class FreqDampTarget(object):
         self.mode_target_damp = np.array([0.])
         self.freq_factor = []
 
-    def configure(self):
+    def execute(self):
 
         modetrack = ModeTrackingByFreqDamp()
         modetrack.mode_freq = self.mode_freq
@@ -612,322 +667,3 @@ class FreqDampTarget(object):
         freqtarget.execute()
 
         self.freq_factor = freqtarget.freq_factor
-
-
-class H2SCIDPostProcess(object):
-    """
-    Component to gather the CID outputs from lists to the corresponding
-    variabletree
-    """
-    def __init__(self):
-
-        self.blade_loads_cid = []
-        self.blade_disps_cid = []
-        self.hub_loads_cid = []
-        self.rotor_loads_cid = []
-        self.oper_cid = []
-        self.freq_factor_cid = []
-        self.blade_loads = DistributedLoadsArrayVT()
-        self.blade_disps = BeamDisplacementsArrayVT()
-        self.rotor_loads = RotorLoadsArrayVT()
-        self.hub_loads = PointLoadArray()
-        self.oper = RotorOperationalDataArray()
-
-        self.freq_factor = []
-
-    def execute(self):
-
-        ni = len(self.rotor_loads_cid)
-        self.freq_factor = []
-        for factor in self.freq_factor_cid:
-            if factor.freq_factor:
-                self.freq_factor.append(factor.freq_factor)
-
-        # rotor loads
-        for name in self.rotor_loads.list_vars():
-            try:
-                value = np.array([getattr(self.rotor_loads_cid[i], name)[-1]
-                                 for i in range(ni)])
-                setattr(self.rotor_loads, name, value)
-            except:
-                pass
-
-        # hub loads
-        for name in self.hub_loads.list_vars():
-            try:
-                value = np.array([getattr(self.hub_loads_cid[i], name)[-1]
-                                 for i in range(ni)])
-                setattr(self.hub_loads, name, value)
-            except:
-                pass
-
-        # operational data
-        for name in self.oper.list_vars():
-            try:
-                value = np.array([getattr(self.oper_cid[i], name)[-1]
-                                 for i in range(ni)])
-                setattr(self.oper, name, value)
-            except:
-                pass
-
-        # blade_loads
-        self.blade_loads = DistributedLoadsArrayVT()
-        for i, case in enumerate(self.blade_loads_cid):
-            try:
-                self.blade_loads.add('load%i'%i, case.loads_array[-1])
-                self.blade_loads.loads_array.append('load%i'%i)
-            except:
-                self._logger.warning('failed setting blade_loads.load%i' % i)
-
-        # blade_disps
-        tip_pos = []
-        tip_rot = []
-        self.blade_disps = BeamDisplacementsArrayVT()
-        for i, case in enumerate(self.blade_disps_cid):
-            try:
-                self.blade_disps.add('disp%i'%i, case.disps_array[-1])
-                tip_pos.append(case.disps_array[-1].main_axis[-1, :])
-                tip_rot.append(case.tip_rot[-1])
-            except:
-                self._logger.warning('failed setting blade_disps.disp%i' % i)
-
-        self.blade_disps.tip_pos = np.array(tip_pos)
-        self.blade_disps.tip_rot = np.array(tip_rot)
-
-
-class H2SResInterp(object):
-
-    def __init__(self):
-
-        self.blade_loads = DistributedLoadsArrayVT()
-        self.blade_disps = BeamDisplacementsArrayVT()
-        self.rotor_loads = RotorLoadsArrayVT()
-        self.hub_loads = PointLoadArray()
-        self.oper = RotorOperationalDataArray()
-
-        self.blade_loads_i = DistributedLoadsArrayVT()
-        self.blade_disps_i = BeamDisplacementsArrayVT()
-        self.rotor_loads_i = RotorLoadsArrayVT()
-        self.hub_loads_i = PointLoadArray()
-        self.oper_i = RotorOperationalDataArray()
-
-        self.N = 50
-
-        self.cutout_ws = 25.
-
-    def execute(self):
-
-        # Find rated wind speed
-        P = self.rotor_loads.P
-        ws = self.rotor_loads.wsp
-
-        # Let's skip the interpolation if we only have one wind speed
-        if len(ws) > 1:
-            P_diff = (P[1:]-P[:-1])
-            P_rated = P[P_diff.tolist().index(min(P_diff))]
-
-            for ip, p in enumerate(P):
-                if (P_rated - p)/P_rated < 0.01:
-                    break
-            ws_i = np.linspace(np.min(ws), ws[ip], 1e3)
-            pp = np.polyfit(ws[:ip], P[:ip], 2)
-            P_il = np.polyval(pp, ws_i)
-            P_ir = P_rated*np.ones(len(ws_i))
-            diff = np.abs(P_ir-P_il)
-            ws_r = ws_i[diff.tolist().index(np.min(diff))]
-
-            # Blade loads are not interpolated!
-            self.blade_loads_i = self.blade_loads
-
-            max_ws = max(self.rotor_loads.wsp)
-
-            for iws, ws in enumerate(self.rotor_loads.wsp):
-                if ws > self.cutout_ws:
-                    max_ws = self.rotor_loads.wsp[iws-1]
-                    break
-
-            i_max_ws = self.rotor_loads.wsp.tolist().index(max_ws)+1
-
-            self._logger.info('Number of wind speed in operative range: %i\
-                               out of: %i' % (i_max_ws, len(self.rotor_loads.wsp)))
-            n = self.N+(len(self.rotor_loads.wsp)-i_max_ws)
-
-            self.rotor_loads_i.wsp = np.zeros([n])
-
-            ws_i = np.linspace(min(self.rotor_loads.wsp), max_ws, self.N)
-
-            self.rotor_loads_i.wsp[:self.N] = ws_i
-            for i, v in enumerate(self.rotor_loads.wsp[i_max_ws:]):
-                self.rotor_loads_i.wsp[self.N+i] = v
-
-            # rotor_loads
-            for att in self.rotor_loads.list_vars():
-                if att[0] is '_':
-                    continue
-                if att is 'wsp':
-                    continue
-                val = getattr(self.rotor_loads, att)
-                if not val.tolist():
-                    continue
-                val_i = np.zeros([n])
-
-                val_i[:self.N] = pchip(self.rotor_loads.wsp[:i_max_ws],
-                                       val[:i_max_ws])(ws_i)
-                if att is 'T':
-                    val_i[:self.N] = sharp_curves_interpolation(
-                        self.rotor_loads.wsp[:i_max_ws],
-                        val[:i_max_ws], ws_i, ws_r)
-                for i, v in enumerate(val[i_max_ws:]):
-                    val_i[self.N+i] = v
-                setattr(self.rotor_loads_i, att, val_i)
-
-            # hub_loads
-            for att in self.hub_loads.list_vars():
-                if att[0] is '_':
-                    continue
-                if att is 'wsp':
-                    continue
-                val = getattr(self.hub_loads, att)
-                if not val.tolist():
-                    continue
-                val_i = np.zeros([n])
-
-                val_i[:self.N] = pchip(self.rotor_loads.wsp[:i_max_ws],
-                                       val[:i_max_ws])(ws_i)
-
-                for i, v in enumerate(val[i_max_ws:]):
-                    val_i[self.N+i] = v
-                setattr(self.hub_loads_i, att, val_i)
-
-            # oper
-            for att in self.oper.list_vars():
-                if att[0] is '_':
-                    continue
-                val = getattr(self.oper, att)
-                if not val.tolist():
-                    continue
-                val_i = np.zeros([n])
-
-                val_i[:self.N] = pchip(self.rotor_loads.wsp[:i_max_ws],
-                                       val[:i_max_ws])(ws_i)
-                for i, v in enumerate(val[i_max_ws:]):
-                    val_i[self.N+i] = v
-                setattr(self.oper_i, att, val_i)
-
-            # blade_disp
-            self.blade_disps_i.tip_pos = np.zeros([n, 3])
-            for i in [0, 2]:
-                self.blade_disps_i.tip_pos[:self.N, i] =\
-                    pchip(self.oper.wsp[:i_max_ws],
-                          self.blade_disps.tip_pos[:i_max_ws, i])(ws_i)
-
-            self.blade_disps_i.tip_pos[:self.N, 1] =\
-                sharp_curves_interpolation(self.oper.wsp[:i_max_ws],
-                                           self.blade_disps.tip_pos[:i_max_ws, 1],
-                                           ws_i, ws_r)
-            for i in range(3):
-                for j, v in enumerate(self.blade_disps.tip_pos[i_max_ws:, i]):
-                    self.blade_disps_i.tip_pos[self.N+j, i] = v
-
-            self.blade_disps_i.tip_rot = np.zeros([n])
-            self.blade_disps_i.tip_rot[:self.N] = pchip(
-                self.oper.wsp[:i_max_ws],
-                self.blade_disps.tip_rot[:i_max_ws])(ws_i)
-
-            for j, v in enumerate(self.blade_disps.tip_rot[i_max_ws:]):
-                self.blade_disps_i.tip_rot[self.N+j] = v
-
-from fusedwind.turbine.rotoraero_vt import LoadVectorArray, LoadVectorCaseList, LoadVector
-from fusedwind.turbine.structure_vt import BeamStructureVT
-from fusedwind.turbine.geometry_vt import BladePlanformVT
-
-
-class ComputeLoads(object):
-    """
-    Compute extreme loads based on steady state HAWC2S simulations
-
-    The blade_loads cases do not include contributions from gravity loads.
-    These are therefore added manually to the loads.
-    Likewise, the blade loads do not include centrifugal forces, also added manually.
-    todo: calculate torsional moment
-    """
-    def __init__(self):
-
-        self.oper = RotorOperationalDataArray()
-        self.beam_structure = BeamStructureVT()
-        self.pf = BladePlanformVT()
-        self.blade_loads = DistributedLoadsArrayVT()
-        self.factor = 1.35
-        self.g = 9.81
-        self.hub_radius = np.array([0.0])
-        self.x = np.array([0.0])
-
-        self.lc = LoadVectorCaseList
-
-    def execute(self):
-
-        self.lcs = []
-        self.lc = []
-        for j, lname in enumerate(self.blade_loads.loads_array):
-            load = getattr(self.blade_loads, lname)
-            lc = LoadVectorArray()
-            for name in lc.list_vars():
-                var = getattr(lc, name)
-                if isinstance(var, np.ndarray):
-                    setattr(lc, name, np.zeros(load.s.shape[0]))
-            lc.s = load.s
-            r = load.s * self.pf.blade_length + self.hub_radius
-            lc.case_id = lname
-            lc.Fxm = np.zeros(load.s.shape[0])
-            lc.Fym = np.zeros(load.s.shape[0])
-            # rotate to local profile coordinate system
-            pitch = self.oper.pitch[j] * np.pi / 180.
-            vhub = self.oper.vhub
-            theta = np.interp(load.s, self.pf.s, self.pf.rot_z) * np.pi / 180.
-            Fx =  load.Ft * np.cos(theta + pitch) + load.Fn * np.sin(theta + pitch)
-            Fy =  load.Fn * np.cos(theta + pitch) - load.Ft * np.sin(theta + pitch)
-
-            # compute contribution from mass
-            dm = np.interp(load.s * self.pf.smax * self.pf.blade_length, self.beam_structure.s, self.beam_structure.dm)
-            # Fmass = np.array([np.trapz(dm[i:], load.s[i:]) for i in range(load.s.shape[0])]) * 9.81
-            Fmass = dm * self.g
-            Fxmass = Fmass * np.cos(theta + pitch)
-            Fymass = Fmass * np.sin(theta + pitch)
-
-            # centrifugal acceleration a = (omega * r)**2 / r + g
-            acc = (self.oper.rpm[j] * 2 * np.pi / 60.)**2 * r + self.g
-            lc.acc = acc
-            if vhub > 25.:
-                factor = 1.35
-            else:
-                factor = 1.1
-
-            for i in range(load.s.shape[0]):
-                lc.Fx[i] = (np.trapz(Fx[i:] + Fxmass[i:], r[i:])) * factor
-                lc.Fy[i] = (np.trapz(Fy[i:] + Fymass[i:], r[i:])) * factor
-                lc.Fz[i] = np.trapz(acc[i:] * dm[i:], r[i:]) * factor
-                lc.Mx[i] = -np.trapz((Fy[i:] + Fxmass[i:]) * (r[i:] - r[i]), r[i:]) * factor
-                lc.My[i] = np.trapz((Fx[i:] + Fymass[i:]) * (r[i:] - r[i]), r[i:]) * factor
-
-            self.lcs.append(lc.copy())
-
-        for j, x in enumerate(self.x):
-            lc = LoadVectorCaseList()
-            lc.s = x
-            for name in ['Fx', 'Fy', 'Fz', 'Mx', 'My']:
-                # positive components
-                lv = LoadVector()
-                for case in self.lcs:
-                    c = case._interp_s(x)
-                    if getattr(c, name) > getattr(lv, name):
-                        lv = c.copy()
-                lc.cases.append(lv.copy())
-
-                # negative components
-                lv = LoadVector()
-                for case in self.lcs:
-                    c = case._interp_s(x)
-                    if getattr(c, name) < getattr(lv, name):
-                        lv = c.copy()
-                lc.cases.append(lv.copy())
-            self.lc.append(lc.copy())
