@@ -34,7 +34,19 @@ def stfile2beamvt(filename):
 
 
 class HAWC2InputReader(object):
+    """
+    Class to read HAWC2 files and store the data in variables trees.
 
+    parameters
+    ----------
+    htc_master_file: str
+        Name of the htc file to read.
+
+    returns
+    -------
+    vartrees: HAWC2VarTrees
+        Variable tree with all the information of the model.
+    """
     def __init__(self):
         self.htc_master_file = 'hawc_master.htc'
         self.htc = []
@@ -644,7 +656,8 @@ class HAWC2InputReader(object):
 
         self.set_entry(self.vartrees.h2s, section, 'operational_data_filename')
 
-        self.read_operational_data_file()
+        if 'compute_optimal_pitch_angle' not in self.vartrees.h2s.commands:
+            self.read_operational_data_file()
 
     def add_hawc2s_body(self, section):
 
@@ -693,19 +706,12 @@ class HAWC2InputReader(object):
 
     def read_operational_data_file(self):
 
-        try:
-            fid = open(self.vartrees.h2s.operational_data_filename, 'r')
-            fid.readline()
-            data = loadtxt(fid)
-            fid.close()
-
-            self.vartrees.h2s.wsp_curve = data[:, 0]
-            self.vartrees.h2s.pitch_curve = data[:, 1]
-            self.vartrees.h2s.rpm_curve = data[:, 2]
-        except:
-            # self._logger.warning('failed reading operational data file %s' % # FIXME:
-            #                      self.vartrees.h2s.operational_data_filename)
-            pass
+        data = loadtxt(self.vartrees.h2s.operational_data_filename, skiprows=1)
+        if len(data.shape) == 1:
+            data = data.reshape([1, data.shape[0]])
+        self.vartrees.h2s.wsp_curve = data[:, 0]
+        self.vartrees.h2s.pitch_curve = data[:, 1]
+        self.vartrees.h2s.rpm_curve = data[:, 2]
 
     def add_controller_tuning(self, section):
 

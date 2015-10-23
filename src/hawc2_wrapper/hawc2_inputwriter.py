@@ -150,12 +150,33 @@ def write_stfile(path, body, case_id):
 
 
 class HAWC2InputWriter(object):
+    """
+    Class to write HAWC2 input files.
 
+    parameters
+    ----------
+    case_id: str
+        Name of the file to write.
+    vartrees: HAWC2VarTrees
+        Variable tree containing all the model infomation.
+    data_directory: str
+        Name of data directory.
+    res_directory: str
+        Name of results directory.
+    turb_directory: str
+        Name of turbulence files directory.
+    log_directory: str
+        Name of log files directory.
+    control_directory: str
+        Name of controller files directory.
+    returns
+    -------
+        nothing
+    """
     def __init__(self):
 
-        self.from_file = True
         self.case_id = 'hawc2_case'
-        self.htc_master = []  # Final master list of inputs
+        self.vartrees = HAWC2VarTrees()
 
         self.data_directory = 'data'
         self.res_directory = 'res'
@@ -163,24 +184,35 @@ class HAWC2InputWriter(object):
         self.log_directory = 'logfile'
         self.control_directory = 'control'
 
-        self.vartrees = HAWC2VarTrees()
-        self.Flag = False
-        self.force_execute = True
-
-        self.htc_master = []
-        self.structure = []
-        self.aerodrag = []
-        self.controlinp = []
-        self.sensors = []
-
-        self._nbodies = 0
-
         if not os.path.exists(self.data_directory):
             os.mkdir(self.data_directory)
 
-    def write_master(self):
+    def execute(self):
 
-        # print 'writing case id %s' % self.case_id
+        if not os.path.exists(self.data_directory):
+            os.mkdir(self.data_directory)
+        self.case_idout = self.case_id
+        self._write_all()
+        self._write_master()
+        self._write_pcfile()
+        self._write_aefile()
+
+    def _write_all(self):
+
+        self.htc_master = []
+
+        self._write_simulation()
+        self._write_wind()
+        self._write_aero()
+        self._write_aerodrag()
+        self._write_structure()
+        self._write_dlls()
+        self._write_output()
+
+    def _write_master(self):
+        """
+        write htc_master list to file
+        """
         fid = open(self.case_id + '.htc', 'w')
 
         for i, line in enumerate(self.htc_master):
@@ -189,173 +221,7 @@ class HAWC2InputWriter(object):
                 fid.write(line)
         fid.close()
 
-    def write_all(self):
-
-        self.htc_master = []
-        self.controlinp = []
-        self.sensors = []
-
-        self.configure_wt()
-        self.write_simulation()
-        self.write_wind()
-        self.write_aero()
-        self.write_aerodrag()
-        self.write_structure_res()
-        self.update_c12axis()
-        self.write_structure()
-        self.write_dlls()
-        self.write_output()
-
-        self.htc_master.extend(self.structure)
-        self.htc_master.extend(self.controlinp)
-        self.htc_master.extend(self.sensors)
-
-    def execute(self):
-
-        if not os.path.exists(self.data_directory):
-            os.mkdir(self.data_directory)
-        self.case_idout = self.case_id
-        self.write_all()
-        self.write_master()
-        self.write_pcfile()
-        self.write_aefile()
-        self.Flag = True
-
-    def configure_wt(self):
-
-        if not self.from_file:
-            self.configure_tower_body()
-            self.configure_towertop_body()
-            self.configure_shaft_body()
-            self.configure_hub_bodies()
-            self.configure_blade_bodies()
-
-            self.add_tower_aerodrag()
-            self.add_nacelle_aerodrag()
-
-    def add_tower_aerodrag(self, cd=0.6):
-        """convenience function to add tower drag"""
-        geom = np.zeros((2, 2))
-        geom[0, :] = 0, self.vartrees.tower.bottom_diameter
-        geom[1, :] = self.vartrees.tower.height, self.vartrees.tower.top_diameter
-        self.add_aerodrag_element('tower', geom, cd)
-
-    def add_nacelle_aerodrag(self, cd=0.8, width=10.):
-        """convenience function to add nacelle drag"""
-
-        geom = np.zeros((2, 2))
-
-        shaft = self.vartrees.main_bodies.get_main_body('shaft')
-
-        geom[0, :] = 0, shaft.c12axis[0, 2]
-        geom[1, :] = shaft.c12axis[-1, 2], width
-        self.add_aerodrag_element('shaft', geom, cd)
-
-    def configure_tower_body(self):
-        """
-        convenience method for adding tower body with orientation
-        and constraints
-        """
-        b = self.vartrees.main_bodies.add_main_body('tower')
-        b.c12axis = np.zeros((10, 4))
-        b.c12axis[:, 2] = np.linspace(0, -self.tower.height, 10)
-        b.add_orientation('base')
-        b.orientations[0].eulerang.append(np.array([0, 0, 0]))
-        b.add_constraint('fixed')
-        print 'Not sure it makes sense configure_tower_body'  # FIXME:
-        return b
-
-    def configure_towertop_body(self):
-        """
-        convenience method for adding towertop body with orientation
-        and constraints
-        """
-
-        b = self.vartrees.main_bodies.add_main_body('towertop')
-        b.c12axis = np.zeros((2, 4))
-        b.c12axis[-1, 2] = -self.vartrees.nacelle.diameter / 2.
-        b.add_orientation('relative')
-        b.orientations[0].mbdy1_name = 'tower'
-        b.orientations[0].eulerang.append(np.array([0, 0, 0]))
-        b.add_constraint('fixed_to_body', body1='tower')
-        print 'Not sure it makes sense configure_towertop_body'  # FIXME:
-
-    def configure_shaft_body(self):
-        """
-        convenience method for adding shaft body with orientation
-        and constraints
-        """
-
-        b = self.vartrees.main_bodies.add_main_body('shaft')
-        b.c12axis = np.zeros((5, 4))
-        b.c12axis[:, 2] = np.linspace(0, self.vartrees.shaft.length, 5)
-        b.add_orientation('relative')
-        b.orientations[0].mbdy1_name = 'towertop'
-        b.orientations[0].eulerang.append(np.array([90, 0, 0]))
-        b.orientations[0].eulerang.append(np.array([self.rotor.tilt_angle,
-                                                    0, 0]))
-        b.orientations[0].mbdy2_ini_rotvec_d1 = 0.314
-        b.orientations[0].rotation_dof = [0, 0, -1]
-        b.add_constraint('free', body1='towertop', con_name='shaft_rot',
-                         DOF=np.array([0, 0, 0, 0, 0, -1]))
-
-    def configure_hub_bodies(self):
-        """
-        convenience method for adding hub bodies with orientation
-        and constraints
-        """
-
-        b = self.vartrees.main_bodies.add_main_body('hub1')
-        b.c12axis = np.zeros((2, 4))
-        b.c12axis[1, 2] = self.vartrees.hub.diameter/2.
-        b.nbodies = 1
-        b.add_orientation('relative')
-        b.orientations[0].mbdy1_name = 'shaft'
-        b.orientations[0].eulerang.append(np.array([-90., 0., 0.]))
-        b.orientations[0].eulerang.append(np.array([0., 180., 0.]))
-        b.orientations[0].eulerang.append(
-            np.array([self.vartrees.rotor.cone_angle, 0., 0.]))
-        b.add_constraint('fixed_to_body', body1='shaft')
-
-        for i in range(1, self.vartrees.rotor.nblades):
-            b = self.vartrees.main_bodies.add_main_body('hub' + str(i + 1))
-            b.copy_main_body = 'hub1'
-            b.add_orientation('relative')
-            b.orientations[0].mbdy1_name = 'shaft'
-            b.orientations[0].eulerang.append(np.array([-90., 0., 0.]))
-            b.orientations[0].eulerang.append(
-                np.array([0., 60. - (i - 1) * 120., 0.]))
-            b.orientations[0].eulerang.append(
-                np.array([self.vartrees.rotor.cone_angle, 0., 0.]))
-            b.add_constraint('fixed_to_body', body1='shaft')
-
-    def configure_blade_bodies(self):
-        """
-        convenience method for adding blade bodies with orientation
-        and constraints
-        """
-
-        b = self.vartrees.main_bodies.add_main_body('blade1')
-        b.c12axis[:, :3] = self.vartrees.blade_ae.c12axis
-        b.c12axis[:,  3] = self.vartrees.blade_ae.twist
-        b.nbodies = 10
-        b.add_orientation('relative')
-        b.orientations[0].mbdy1_name = 'hub1'
-        b.orientations[0].eulerang.append(np.array([0, 0, 0]))
-        b.add_constraint('prescribed_angle', body1='hub1', con_name='pitch1',
-                         DOF=np.array([0, 0, 0, 0, 0, -1]))
-
-        for i in range(1, self.rotor.nblades):
-            b = self.vartrees.main_bodies.add_main_body('blade' + str(i + 1))
-            b.copy_main_body = 'blade1'
-            b.add_orientation('relative')
-            b.orientations[0].mbdy1_name = 'hub' + str(i + 1)
-            b.orientations[0].eulerang.append(np.array([0, 0, 0]))
-            b.add_constraint('prescribed_angle', body1='hub' + str(i + 1),
-                             con_name='pitch' + str(i + 1),
-                             DOF=np.array([0, 0, 0, 0, 0, -1]))
-
-    def write_simulation(self):
+    def _write_simulation(self):
         """ write simulation block """
 
         sim = []
@@ -380,7 +246,7 @@ class HAWC2InputWriter(object):
             sim[iw+1] = '  ' + w + ';'
         self.htc_master.extend(sim)
 
-    def write_wind(self):
+    def _write_wind(self):
         """ write wind definition block """
 
         wind_vt = self.vartrees.wind
@@ -413,10 +279,10 @@ class HAWC2InputWriter(object):
                          wind_vt.G_T))
 
         if wind_vt.turb_format == 1:
-            wind.extend(self.write_mann_turbulence())
+            wind.extend(self._write_mann_turbulence())
 
         if wind_vt.tower_shadow_method > 0:
-            wind.extend(self.write_tower_potential())
+            wind.extend(self._write_tower_potential())
 
         wind.append('end wind')
         # Adding indent and semicolons
@@ -426,7 +292,7 @@ class HAWC2InputWriter(object):
             wind[iw+1] = '  ' + w + ';'
         self.htc_master.extend(wind)
 
-    def write_mann_turbulence(self):
+    def _write_mann_turbulence(self):
         """ write mann turbulence model"""
 
         fmt = ' %12.6e'
@@ -453,7 +319,7 @@ class HAWC2InputWriter(object):
             mann[im+1] = '  ' + m
         return mann
 
-    def write_tower_potential(self):
+    def _write_tower_potential(self):
         """ write tower shadow with potential method"""
 
         fmt = ' %12.6e'
@@ -471,7 +337,7 @@ class HAWC2InputWriter(object):
             tower_pot[im+1] = '  ' + m
         return tower_pot
 
-    def write_aero(self):
+    def _write_aero(self):
         """ write aerodynamic block """
 
         aerovt = self.vartrees.aero
@@ -504,7 +370,7 @@ class HAWC2InputWriter(object):
 
         self.htc_master.extend(aero)
 
-    def write_aerodrag(self):
+    def _write_aerodrag(self):
         """ write aerodrag block """
 
         aerodrag = []
@@ -526,7 +392,7 @@ class HAWC2InputWriter(object):
                 aerodrag[ia+1] = '  ' + a
             self.htc_master.extend(aerodrag)
 
-    def write_structure_res(self):
+    def _write_structure_res(self):
         """ write result files for eigen analysis """
 
         structure_out = []
@@ -546,13 +412,25 @@ class HAWC2InputWriter(object):
 
         self.structure.extend(structure_out)
 
-    def write_main_bodies(self):
+    def _write_structure(self):
+        """ write model structure"""
+
+        self.structure = []
+        self.structure.append('begin new_htc_structure;')
+        self._write_structure_res()
+        self._write_main_bodies()
+        self._write_orientations()
+        self._write_constraints()
+        self.structure.append('end new_htc_structure;')
+        self.htc_master.extend(self.structure)
+
+    def _write_main_bodies(self):
         """ write all main bodies """
 
         for name in self.vartrees.body_order:
-            self.structure.extend(self.write_main_body(name))
+            self.structure.extend(self._write_main_body(name))
 
-    def write_main_body(self, body_name):
+    def _write_main_body(self, body_name):
         """ write one main body """
 
         fmt = ' %12.6e'
@@ -594,7 +472,7 @@ class HAWC2InputWriter(object):
                                  tuple(body.c12axis[i, :]))
             main_body.append('end c2_def')
             if len(body.beam_structure) > 0:
-                self.write_stfile(body)
+                self._write_stfile(body)
 
         main_body.append('end main_body')
 
@@ -606,7 +484,7 @@ class HAWC2InputWriter(object):
 
         return main_body
 
-    def write_orientations(self):
+    def _write_orientations(self):
 
         orientations = []
         orientations.append('begin orientation')
@@ -644,7 +522,7 @@ class HAWC2InputWriter(object):
             orientations[io+1] = '  ' + o
         self.structure.extend(orientations)
 
-    def write_constraints(self):
+    def _write_constraints(self):
 
         constraints = []
         fmt = ' %12.6e'
@@ -694,27 +572,21 @@ class HAWC2InputWriter(object):
             constraints[ic+1] = '  ' + c
         self.structure.extend(constraints)
 
-    def write_structure(self):
-        """ write model structure"""
-
-        self.structure = []
-        self.structure.append('begin new_htc_structure;')
-        self.write_main_bodies()
-        self.write_orientations()
-        self.write_constraints()
-        self.structure.append('end new_htc_structure;')
-
-    def write_dlls(self):
+    def _write_dlls(self):
         """
+        write all the dlls
         """
-        self.controlinp.append('begin dll;')
+        dlls = []
+        dlls.append('begin dll;')
         for name in self.vartrees.dlls_order:
-            self.controlinp.extend(self.write_dll(name))
-        self.controlinp.append('end dll;')
-        for i, c in enumerate(self.controlinp[1:-1]):
-            self.controlinp[i+1] = '  ' + c
+            dlls.extend(self._write_dll(name))
+        dlls.append('end dll;')
+        # add indent
+        for i, c in enumerate(dlls[1:-1]):
+            dlls[i+1] = '  ' + c
+        self.htc_master.extend(dlls)
 
-    def write_dll(self, dll_name):
+    def _write_dll(self, dll_name):
         """ write general type2 dll"""
 
         fmt = '%2i  %12.6e'
@@ -760,14 +632,7 @@ class HAWC2InputWriter(object):
 
         return dll
 
-    def update_c12axis(self):
-
-        self.vartrees.main_bodies.blade1.c12axis = \
-            self.vartrees.blade_ae.c12axis.copy()
-        self.vartrees.main_bodies.blade1.beam_structure = \
-            self.vartrees.blade_structure
-
-    def write_output(self):
+    def _write_output(self):
 
         sns = []
         sns.append('begin output')
@@ -783,129 +648,111 @@ class HAWC2InputWriter(object):
         sns.append('end output')
 
         sns = [s+';' for s in sns]
-        self.sensors.extend(sns)
 
-    def calculate_c12axis(self):
-        """
-        compute the 1/2 chord axis based on the blade axis and chordwise
-        rotation point
-        nb: this examples only works for straight blades! # FIXME:
-        """
+        self.htc_master.extend(sns)
 
-        # The HAWC2 blade axis is defined using the 1/2 chord points
-        b = self.vartrees.blade_geom
-        c12axis = np.zeros((b.main_axis.shape[0], 4))
-        for i in range(b.main_axis.shape[0]):
-            xc12 = (0.5 - b.p_le[i]) * b.chord[i] *\
-                    np.cos(b.rot_z[i] * np.pi / 180.)
-            yc12 = -(0.5 - b.p_le[i]) * b.chord[i] * np.sin(b.rot_z[i] * np.pi / 180.)
-            c12axis[i, 0] = -(b.main_axis[i, 0] + xc12)
-            c12axis[i, 1] = b.main_axis[i, 1] + yc12
-            c12axis[i, 2] = b.main_axis[i, 2] - b.main_axis[0, 2]
-        c12axis[:, 3] = b.rot_z
-        return c12axis
-
-    def write_aefile(self):
+    def _write_aefile(self):
 
         path = os.path.join(self.data_directory, self.case_id + '_ae.dat')
         write_aefile(path, self.vartrees.blade_ae)
 
-    def write_stfile(self, body):
+    def _write_stfile(self, body):
 
         tmpname = ''.join([i for i in body.body_name if not i.isdigit()])
         path = os.path.join(self.data_directory,
                             self.case_id + '_' + tmpname + '_st.dat')
         write_stfile(path, body, self.case_id)
 
-    def write_pcfile(self):
+    def _write_pcfile(self):
 
         path = os.path.join(self.data_directory, self.case_id + '_pc.dat')
         write_pcfile(path, self.vartrees.airfoildata)
 
 
 class HAWC2AeroInputWriter(HAWC2InputWriter):
+    """
+    HAWC2InputWriter-type class to write HAWC2aero files.
 
-    def write_main_bodies(self):
-        """
-        specific writer of the HAWC2aero blade c2_axis
-        """
+    parameters
+    ----------
+        same as for HAWC2InputWriter
 
-        pass
-        # fid = open(path, 'w')
-        # lines = []
-        # lines.append('begin blade_c2_def;')
-        # lines.append('    blade 0 %i;' % b.main_axis.shape[0])
-        # for i in range(b.main_axis.shape[0]):
-        #     lines.append('        sec %i  %f %f %f %f;' % (i + 1,
-        #                                                     c12axis[i, 0],
-        #                                                     c12axis[i, 1],
-        #                                                     c12axis[i, 2],
-        #                                                     c12axis[i, 3]))
-        # lines.append('end blade_c2_def;')
-        # for line in lines:
-        #     self.master.append(line+'')
-        # fid.close()
-
-
-class HAWC2SInputWriter(HAWC2InputWriter):
-
+    returns
+    -------
+        nothing
+    """
     def __init__(self):
-        super(HAWC2SInputWriter, self).__init__()
-        self.h2s = []
-        self.set_tsr_flag = False  # Manually set omega according to TSR
-        self.wsp_cases = []  # Wind speeds for which to run HAWC2S
-        self.cases = []  # Other cases to run
-
-    def write_all(self):
-        self.configure_wt()
-        self.write_aero()
-
-        turb_format = self.vartrees.wind.turb_format
-        self.vartrees.wind.turb_format = 0
-        self.write_wind()
-        self.vartrees.wind.turb_format = turb_format
-
-        self.write_structure_res()
-        self.update_c12axis()
-        self.write_main_bodies()
-        self.write_orientations()
-        self.write_constraints()
-        self.structure.insert(0, 'begin new_htc_structure;')
-        self.structure.append('end new_htc_structure;')
-
-        self.htc_master.extend(self.structure)
-        self.write_hawcstab2()
+        super(HAWC2AeroInputWriter, self).__init__()
 
     def execute(self):
 
-        self.h2s = []
         self.htc_master = []
-        self.structure = []
-        self.aerodrag = []
-        self.controlinp = []
-        self.sensors = []
 
         if not os.path.exists(self.data_directory):
             os.mkdir('data')
         self.case_idout = self.case_id
 
-        self.write_all()
-        self.write_master()
-        self.write_pcfile()
-        self.write_aefile()
+        self._write_all()
+        self._write_master()
+        self._write_pcfile()
+        self._write_aefile()
 
-    def write_hawcstab2(self):
+    def _write_all(self):
 
+        self._write_aero()
+        self._write_wind()
+        self._write_output()
+
+
+class HAWC2SInputWriter(HAWC2InputWriter):
+    """
+    HAWC2InputWriter-type class to write HAWC2s files.
+
+    parameters
+    ----------
+        same as for HAWC2InputWriter
+
+    returns
+    -------
+        nothing
+    """
+    def __init__(self):
+        super(HAWC2SInputWriter, self).__init__()
+
+    def execute(self):
+
+        if not os.path.exists(self.data_directory):
+            os.mkdir('data')
+        self.case_idout = self.case_id
+
+        self._write_all()
+        self._write_master()
+        self._write_pcfile()
+        self._write_aefile()
+
+    def _write_all(self):
+
+        self.htc_master = []
+
+        self._write_aero()
+        self._write_wind()
+        self._write_structure()
+        self._write_hawcstab2()
+
+    def _write_hawcstab2(self):
+
+        self.h2s = []
         self.h2s.append('begin hawcstab2;')
-        self.write_hawcstab2_structure()
-        self.write_operational_data_file()
-        self.write_h2s_operational_data()
-        self.write_h2s_control()
-        self.write_h2s_commands()
+        self._write_hawcstab2_structure()
+        self._write_h2s_operational_data()
+        self._write_h2s_control()
+        self._write_h2s_commands()
         self.h2s.append('end hawcstab2;')
         self.htc_master.extend(self.h2s)
 
-    def write_h2s_commands(self):
+        self._write_operational_data_file()
+
+    def _write_h2s_commands(self):
 
         opt_vt = self.vartrees.h2s.options
         cmd = []
@@ -961,76 +808,35 @@ class HAWC2SInputWriter(HAWC2InputWriter):
             elif name == 'basic_dtu_we_controller':
                 init = self.vartrees.dlls.risoe_controller.dll_init
 
-                cmd.append('basic_dtu_we_controller %1.9e %1.9e %1.9e '
-                           '%1.9e %1.9e %1.9e %1.9e %1.9e %1.9e %1.9e '
-                           '%i %1.9e %1.9e %1.9e' %
-                           (init.pgTorque, init.igTorque, init.Qg,
-                            init.pgPitch, init.igPitch,
-                            init.KK1, init.KK2,
-                            init.generatorFreq, init.generatorDamping,
-                            init.ffFreq, init.generatorSwitch,
-                            init.Kp2, init.Ko1, init.Ko2))
+                cmd.append(('basic_dtu_we_controller' + 10*' %20.15e' + ' %i' +
+                            3*' %20.15e') % (init.pgTorque, init.igTorque,
+                                             init.Qg, init.pgPitch,
+                                             init.igPitch, init.KK1, init.KK2,
+                                             init.generatorFreq,
+                                             init.generatorDamping,
+                                             init.ffFreq, init.generatorSwitch,
+                                             init.Kp2, init.Ko1, init.Ko2))
             else:
                 cmd.append(name)
         cmd = ['  ' + c + ';' for c in cmd]
         self.h2s.extend(cmd)
 
-    def write_operational_data_file(self):
+    def _write_operational_data_file(self):
 
         h2s = self.vartrees.h2s
-        ctrl = self.vartrees.dlls.risoe_controller.dll_init
 
-        # HAWCStab2 will compute the operational point for us
-        wsp = []
-        pitch = []
-        rpm = []
-        if 'compute_optimal_pitch_angle' in self.vartrees.h2s.commands \
-           and len(h2s.wsp_cases) > 0:
+        # Write opt file only if it is not computed by HS2
+        if 'compute_optimal_pitch_angle' not in h2s.commands:
 
-            ctrl.Vin = h2s.wsp_cases[0]
-            ctrl.Vout = h2s.wsp_cases[-1]
-            ctrl.nV = len(h2s.wsp_cases)
-
-        # operational point is interpolated from the .opt file
-        elif h2s.wsp_curve.shape[0] > 0:
-
-            for w in h2s.wsp_cases:
-                if self.set_tsr_flag:
-                    minRPM = ctrl.minRPM / ctrl.gearRatio
-                    maxRPM = ctrl.maxRPM / ctrl.gearRatio
-                    omega = ctrl.designTSR * w / self.vartrees.blade_ae.radius
-                    r = max(minRPM, min(maxRPM, omega * 60 / (2. * np.pi)))
-                else:
-                    r = np.interp(w, h2s.wsp_curve, h2s.rpm_curve)
-                p = np.interp(w, h2s.wsp_curve, h2s.pitch_curve)
-                wsp.append(w)
-                pitch.append(p)
-                rpm.append(r)
-
-        for case in h2s.cases:
-            try:
-                wsp.append(case['wsp'])
-                pitch.append(case['pitch'])
-                rpm.append(case['rpm'])
-
-            except:
-                raise RuntimeError('wrong inputs in case')
-
-        if len(wsp) > 0:
-            data = np.array([wsp, pitch, rpm]).T
-            ctrl.Vin = wsp[0]
-            ctrl.Vout = wsp[-1]
-            ctrl.nV = len(wsp)
-        else:
             data = np.array([h2s.wsp_curve, h2s.pitch_curve, h2s.rpm_curve]).T
 
-        fid = open(self.case_id + '.opt', 'w')
-        fid.write(('%i Wind speed [m/s]          Pitch [deg]     ' +
-                  'Rot. speed [rpm]\n') % data.shape[0])
-        np.savetxt(fid, data)
-        fid.close()
+            fid = open(self.case_id + '.opt', 'w')
+            fid.write(('%i Wind speed [m/s]          Pitch [deg]     ' +
+                      'Rot. speed [rpm]\n') % data.shape[0])
+            np.savetxt(fid, data)
+            fid.close()
 
-    def write_hawcstab2_structure(self):
+    def _write_hawcstab2_structure(self):
 
         h2s_vt = self.vartrees.h2s
         st = []
@@ -1065,7 +871,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
         st = ['  ' + s + ';' for s in st]
         self.h2s.extend(st)
 
-    def write_h2s_control(self):
+    def _write_h2s_control(self):
 
         ctr = []
         dll_init = self.vartrees.dlls.risoe_controller.dll_init
@@ -1097,7 +903,7 @@ class HAWC2SInputWriter(HAWC2InputWriter):
         ctr = ['  ' + c + ';' for c in ctr]
         self.h2s.extend(ctr)
 
-    def write_h2s_operational_data(self):
+    def _write_h2s_operational_data(self):
 
         dll_init = self.vartrees.dlls.risoe_controller.dll_init
         opt = []
