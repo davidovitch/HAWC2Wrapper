@@ -362,3 +362,64 @@ def read_hawc2_ae_file(filename):
     fid.close()
 
     return blade_ae
+
+
+def read_controller_tuning_file(filename):
+    """Read controller tuning output file from HAWCStab2
+
+    Parameters
+    ----------
+
+    filename : str
+        file name of the controller tuning HS2 output file
+
+    Returns
+    -------
+        res : dict
+            dictionary holding the results with the following keys:
+            pi_gen_reg1.K, pi_gen_reg2.Kp, pi_gen_reg2.Ki, pi_gen_reg1.K,
+            pi_pitch_reg3.Kp, pi_pitch_reg3.Ki, pi_pitch_reg3.K1,
+            pi_pitch_reg3.K2, aero_damp.Kp2, aero_damp.Ko1, aero_damp.Ko2.
+            Note that for linear tuning, pi_pitch_reg3.K2 and aero_damp.Ko2
+            are set to zero.
+    """
+
+    def parse_line(line, controller):
+        split1 = line.split('=')
+        var1 = split1[0].strip()
+        try:
+            val1 = float(split1[1].split('[')[0])
+            contr_tuning[controller + '.' + var1] = val1
+            if len(split1) > 2:
+                var2 = split1[1].split(',')[1].strip()
+                val2 = float(split1[2].split('[')[0])
+                contr_tuning[controller + '.' + var2] = val2
+        except IndexError:
+            pass
+
+    contr_tuning = {}
+
+    with open(filename, "r") as f:
+        for i, line in enumerate(f):
+            if i == 0:
+                controller = 'pi_gen_reg1'
+            elif i == 2:
+                controller = 'pi_gen_reg2'
+            elif i == 6:
+                controller = 'pi_pitch_reg3'
+            elif i == 10:
+                controller = 'aero_damp'
+            elif i < 13:
+                parse_line(line, controller)
+
+    # set some parameters to zero for the linear case
+    try:
+        contr_tuning['pi_pitch_reg3.K2']
+    except KeyError:
+        contr_tuning['pi_pitch_reg3.K2'] = 0.0
+    try:
+        contr_tuning['aero_damp.Ko2']
+    except KeyError:
+        contr_tuning['aero_damp.Ko2'] = 0.0
+
+    return contr_tuning
